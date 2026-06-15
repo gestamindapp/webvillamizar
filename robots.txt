@@ -1,0 +1,66 @@
+# robots.txt — Dr. Daniel Villamizar Hernández
+# Permite el acceso a buscadores y motores de IA (visibilidad en ChatGPT, Perplexity, Google AI, etc.)
+# IMPORTANTE: reemplaza "www.tudominio.com" por tu dominio real en la línea Sitemap.
+
+# --- Regla general: todo el sitio es accesible ---
+User-agent: *
+Allow: /
+
+# --- Buscadores tradicionales ---
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# --- Motores de IA / respuestas generativas ---
+# Google (Gemini / AI Overviews)
+User-agent: Google-Extended
+Allow: /
+
+# OpenAI / ChatGPT
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Anthropic / Claude
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# Apple Intelligence
+User-agent: Applebot-Extended
+Allow: /
+
+# Meta AI
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+# --- Sitemap (cambia el dominio por el tuyo) ---
+Sitemap: https://danielvillamizar.com/sitemap.xml
