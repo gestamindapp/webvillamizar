@@ -62,5 +62,26 @@ Allow: /
 User-agent: Amazonbot
 Allow: /
 
-# --- Sitemap (cambia el dominio por el tuyo) ---
+# Buscadores IA (citación en respuestas)
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Perplexity-User
+Allow: /
+User-agent: Claude-SearchBot
+Allow: /
+User-agent: Claude-User
+Allow: /
+
+# Entrenamiento (para un médico: déjalos entrar)
+User-agent: GPTBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+
 Sitemap: https://danielvillamizar.com/sitemap.xml
