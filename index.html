@@ -204,6 +204,12 @@
   .fab:hover{transform:scale(1.06)}
   .fab svg{width:28px;height:28px}
 
+  .sched{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+  .sched iframe{display:block;width:100%;border:0;min-height:760px}
+  .sched-alt{margin-top:16px;font-size:.9rem;color:var(--ink-soft);text-align:center}
+  .btn-light{background:var(--surface);color:var(--blue-deep);border:1.5px solid var(--blue);font-weight:700}
+  .btn-light:hover{background:var(--mist);transform:translateY(-1px)}
+
   @media(min-width:680px){
     .quick-grid{grid-template-columns:repeat(3,1fr)}
     .svc-grid{grid-template-columns:1fr 1fr}
@@ -238,7 +244,7 @@
       <a href="#preguntas">Preguntas</a>
       <a href="#contacto">Contacto</a>
     </div>
-    <a class="nav-cta" href="https://wa.me/51970472115" target="_blank" rel="noopener">Agenda tu cita</a>
+    <a class="nav-cta" href="#agendar">Agenda tu cita</a>
   </div>
 </nav>
 
@@ -255,11 +261,14 @@
         medicina fetal, ecografía ginecológica avanzada y mapeo de endometriosis.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-wa" href="https://wa.me/51970472115" target="_blank" rel="noopener">
+        <a class="btn btn-primary" href="#agendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+          Agendar cita en línea
+        </a>
+        <a class="btn btn-wa" href="https://wa.me/51970472115?text=Hola%20Dr.%20Villamizar%2C%20quisiera%20agendar%20una%20cita." target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.1c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.5-1.2-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.1.1.3 0 .5l-.4.5-.3.3c-.1.1-.3.3-.1.6.1.3.7 1.1 1.4 1.8.97.85 1.7 1.1 2 1.3.2.1.4.1.6-.1l.8-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.1.1.6-.1 1.3Z"/></svg>
           WhatsApp · 970 472 115
         </a>
-        <a class="btn btn-ghost" href="#servicios">Ver estudios</a>
       </div>
       <div class="hero-trust">
         <span><span class="dot"></span> <b>FMF</b> · ID 159925</span>
@@ -292,10 +301,10 @@
 <!-- ACCESOS RÁPIDOS -->
 <div class="quick wrap">
   <div class="quick-grid">
-    <a class="qcard" href="https://wa.me/51970472115" target="_blank" rel="noopener">
+    <a class="qcard" href="#agendar">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div>
       <h3>Agendar cita</h3>
-      <p>Reserva por WhatsApp</p>
+      <p>Reserva en línea</p>
     </a>
     <a class="qcard" href="#servicios">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2-6 4 14 3-9 2 4h4"/></svg></div>
@@ -462,19 +471,37 @@
   </div>
 </section>
 
+<!-- AGENDAR EN LÍNEA -->
+<section class="block alt" id="agendar">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:28px">
+      <div class="eyebrow">Reserva en línea</div>
+      <h2>Agenda tu cita</h2>
+      <p>Elige el estudio y el horario que prefieras. Tu reserva se confirma al instante.</p>
+    </div>
+    <div class="sched">
+      <iframe title="Agenda de citas — Dr. Daniel Villamizar"
+        src="https://app.acuityscheduling.com/schedule.php?owner=31060895&ref=embedded_csp"
+        width="100%" height="800" frameborder="0"></iframe>
+    </div>
+    <p class="sched-alt">¿Prefieres otra vía? <a href="https://drvilla.as.me" target="_blank" rel="noopener">Abre la agenda en una pestaña nueva</a> o escríbeme por <a href="https://wa.me/51970472115?text=Hola%20Dr.%20Villamizar%2C%20quisiera%20agendar%20una%20cita." target="_blank" rel="noopener">WhatsApp</a>.</p>
+  </div>
+  <script src="https://embed.acuityscheduling.com/js/embed.js" type="text/javascript" async></script>
+</section>
+
 <!-- CONTACTO -->
 <section class="block" id="contacto">
   <div class="wrap">
     <div class="contact">
       <div class="inner">
         <div>
-          <div class="eyebrow" style="color:#AECCD7">Cómo agendar</div>
-          <h2>Agenda tu cita en Tarapoto</h2>
-          <p class="lead">Atención en consultorio privado, previa cita. Escríbeme por WhatsApp o llámame para reservar tu ecografía.</p>
-          <a class="btn btn-wa" href="https://wa.me/51970472115" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.1c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.5-1.2-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.1.1.3 0 .5l-.4.5-.3.3c-.1.1-.3.3-.1.6.1.3.7 1.1 1.4 1.8.97.85 1.7 1.1 2 1.3.2.1.4.1.6-.1l.8-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.1.1.6-.1 1.3Z"/></svg>
-            WhatsApp · 970 472 115
-          </a>
+          <div class="eyebrow" style="color:#AECCD7">Ubicación y contacto</div>
+          <h2>Dónde encontrarme en Tarapoto</h2>
+          <p class="lead">Atención en consultorio privado, previa cita. Reserva en línea o escríbeme por WhatsApp.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <a class="btn btn-light" href="#agendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg> Agendar cita</a>
+            <a class="btn btn-wa" href="https://wa.me/51970472115?text=Hola%20Dr.%20Villamizar%2C%20quisiera%20agendar%20una%20cita." target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.1c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.5-1.2-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.1.1.3 0 .5l-.4.5-.3.3c-.1.1-.3.3-.1.6.1.3.7 1.1 1.4 1.8.97.85 1.7 1.1 2 1.3.2.1.4.1.6-.1l.8-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.1.1.6-.1 1.3Z"/></svg> WhatsApp · 970 472 115</a>
+          </div>
           <div style="margin-top:24px">
             <div class="ci"><div class="k">Consultorio</div><div class="v">Clínica Rodríguez y Especialistas 2, Piso 5</div></div>
             <div class="ci"><div class="k">Dirección</div><div class="v">Jr. Paraguay 136, Tarapoto, San Martín</div></div>
@@ -508,7 +535,7 @@
   </div>
 </footer>
 
-<a class="fab" href="https://wa.me/51970472115" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">
+<a class="fab" href="https://wa.me/51970472115?text=Hola%20Dr.%20Villamizar%2C%20quisiera%20agendar%20una%20cita." target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">
   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.1c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.5-1.2-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.1.1.3 0 .5l-.4.5-.3.3c-.1.1-.3.3-.1.6.1.3.7 1.1 1.4 1.8.97.85 1.7 1.1 2 1.3.2.1.4.1.6-.1l.8-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.1.1.6-.1 1.3Z"/></svg>
 </a>
 
