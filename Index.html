@@ -105,6 +105,7 @@ function toast(t, err) {
 function modal(html) { $('#sheet').innerHTML = html; $('#modal').style.display = 'flex'; }
 function closeModal() { $('#modal').style.display = 'none'; }
 function loading() { $('#app').innerHTML = '<div class="loading">Cargando…</div>'; }
+function hoyISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function nombreMes(m) {
   const [y, mo] = m.split('-').map(Number);
   const t = new Date(y, mo - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
@@ -228,6 +229,7 @@ VIEWS.inicio = async () => {
   ${r.porCobrar.length ? `<div class="card"><p class="mid"><i class="ti ti-hourglass"></i> Por cobrar · ${money(r.totalPorCobrar)}</p>${r.porCobrar.map(x => `
     <div class="row"><div class="t tap" onclick="go('proc','${x.id}')"><p>${esc(x.nombre)} · ${esc(x.tipo)}</p><p class="small muted">Saldo ${money(x.saldo)}</p></div>
     <a href="${wa(x.celular, 'Hola ' + x.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(x.saldo) + ' por ' + x.tipo + '.')}" target="_blank" style="color:#25D366;font-size:24px"><i class="ti ti-brand-whatsapp"></i></a></div>`).join('')}</div>` : ''}
+  ${r.porFacturar && r.porFacturar.n ? `<div class="card tap" onclick="go('porfac')"><div class="row"><span><i class="ti ti-file-invoice"></i> Facturas por llegar (${r.porFacturar.n})</span><b class="a">~${money(r.porFacturar.total)}</b></div></div>` : ''}
   ${r.patPend ? `<div class="card tap" onclick="go('pat')"><div class="row"><span><i class="ti ti-microscope"></i> Por pagar a Patología</span><b class="a">${money(r.patPend)}</b></div></div>` : ''}`;
 };
 function fail(e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p><button class="btn" onclick="go(S.view,S.param)">Reintentar</button>`; if (/PIN|ingresar/i.test(msg(e))) salir(); }
@@ -361,12 +363,17 @@ function regGasto() {
   h += `<p class="lb">${F.bio ? 'Pieza' : 'Concepto'}</p><input value="${esc(F.concepto)}" placeholder="${ph}" oninput="F.concepto=this.value">
     <p class="lb">Monto${F.bio ? ' de la biopsia (según la pieza)' : ''}</p>
     <input class="monto" type="number" inputmode="decimal" value="${esc(F.monto)}" oninput="F.monto=this.value">`;
-  if (!F.bio) h += `<p class="lb">Forma de pago</p>` + I.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vReg()`)).join('');
+  if (!F.bio) h += `<p class="lb">Forma de pago</p>` + I.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vReg()`)).join('') + compHTML('vReg()');
   else h += `<p class="small muted">Se resta de este procedimiento y queda en el renglón de Patología como “por pagar” hasta que llegue la factura.</p>`;
   h += `<p class="lb" style="margin-top:4px">Nota (opcional)</p><input value="${esc(F.nota)}" oninput="F.nota=this.value">
     ${F.err ? `<p class="err">${esc(F.err)}</p>` : ''}
     <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarGasto()">Guardar</button>`;
   return h;
+}
+function compHTML(re) {
+  return `<p class="lb" style="margin-top:4px">Comprobante (opcional)</p>` +
+    S.init.comps.map(c => chip(c, F.ctipo === c, `F.ctipo=(F.ctipo==='${c}'?'':'${c}');${re}`)).join('') +
+    (F.ctipo && F.ctipo !== 'Sin comprobante' ? `<input value="${esc(F.cnum || '')}" placeholder="${F.ctipo === 'Código de operación' ? 'Código del Yape o transferencia' : 'Número, por ejemplo F001-00482'}" oninput="F.cnum=this.value">` : '');
 }
 function selPres(id) {
   F.pres = id;
@@ -385,7 +392,7 @@ async function guardarGasto() {
   if (F.err) return vReg();
   busy = true; vReg();
   try {
-    await api('registrarGasto', auth(), { destino: F.destino, pres_id: F.pres === 'otro' ? '' : F.pres, proc_id: F.proc, concepto: F.concepto, monto: m, forma: F.forma, biopsia: F.bio, nota: F.nota });
+    await api('registrarGasto', auth(), { destino: F.destino, pres_id: F.pres === 'otro' ? '' : F.pres, proc_id: F.proc, concepto: F.concepto, monto: m, forma: F.forma, biopsia: F.bio, nota: F.nota, comp_tipo: F.ctipo || '', comp_num: F.cnum || '' });
     busy = false; toast('Gasto guardado');
     await refreshInit();
     if (F.destino === 'procedimiento') go('proc', F.proc); else go('inicio');
@@ -395,7 +402,7 @@ async function guardarGasto() {
 // ============ NUEVO PROCEDIMIENTO ============
 VIEWS.nuevoProc = () => {
   F = { modo: 'proc', cat_id: '', tipo_doc: 'DNI', num_doc: '', nombres: '', apellidos: '', celular: '', precio: '', presupuesto: '',
-    forma_cobro: 'unico', pago: '', forma: '', nota: '', err: '', conocida: false };
+    forma_cobro: 'unico', pago: '', forma: '', nota: '', err: '', conocida: false, fecha_proc: hoyISO() };
   vProc();
 };
 function vProc() {
@@ -412,6 +419,8 @@ function vProc() {
   <p class="lb">Nombres *</p><input value="${esc(F.nombres)}" oninput="F.nombres=this.value">
   <p class="lb">Apellidos *</p><input value="${esc(F.apellidos)}" oninput="F.apellidos=this.value">
   <p class="lb">Celular * (9 dígitos, o con + si es extranjero)</p><input type="tel" value="${esc(F.celular)}" oninput="F.celular=this.value">
+  <p class="lb">Fecha de la cirugía o procedimiento (se puede cambiar después)</p>
+  <input type="date" value="${esc(F.fecha_proc)}" oninput="F.fecha_proc=this.value">
   <h2>Montos</h2>
   <div class="grid2"><div><p class="lb">Precio total *</p><input type="number" inputmode="decimal" value="${esc(F.precio)}" oninput="F.precio=this.value"></div>
   <div><p class="lb">Presupuesto de gastos</p><input type="number" inputmode="decimal" value="${esc(F.presupuesto)}" oninput="F.presupuesto=this.value"></div></div>
@@ -471,7 +480,7 @@ VIEWS.procs = async (filtro) => {
   ${lista.length ? lista.map(p => {
     const pg = pct(p.gastos, p.presupuesto);
     return `<div class="card tap" onclick="go('proc','${p.id}')">
-      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${esc(p.fecha)} · ${esc(p.forma_cobro)}</p></div>
+      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${p.fecha_proc ? 'Cirugía ' + esc(p.fecha_proc) : esc(p.fecha)} · ${esc(p.forma_cobro)}${p.porFacturar ? ' · <span class="a">facturas por llegar</span>' : ''}</p></div>
       ${p.saldo > 0 ? `<span class="badge bd-a">Saldo ${money(p.saldo)}</span>` : '<span class="badge bd-g">Pagado</span>'}</div>
       <p class="small muted" style="margin:6px 0 0">Gastos ${money(p.gastos)} de ${money(p.presupuesto)}</p>${bar(pg, colorPct(pg))}
       <p class="small" style="margin:0">Cobrado ${money(p.cobrado)} de ${money(p.precio)} · Ganancia <b class="g">${money(p.ganancia)}</b></p></div>`;
@@ -484,11 +493,13 @@ VIEWS.proc = async (id) => {
   const pg = pct(p.gastos, p.presupuesto), pcob = pct(p.cobrado, p.precio);
   $('#app').innerHTML = `<p class="small tap b" onclick="go('procs')"><i class="ti ti-arrow-left"></i> Procedimientos</p>
   <h1>${esc(p.tipo)} · ${esc(p.nombre)}</h1>
-  <p class="small muted" style="margin-top:-8px">${esc(p.fecha)} · ${esc(p.tipo_doc)} ${esc(p.num_doc)} · ${esc(p.celular)}</p>
+  <p class="small muted" style="margin-top:-8px">${esc(p.tipo_doc)} ${esc(p.num_doc)} · ${esc(p.celular)}</p>
+  <p class="small tap" onclick="cambiarFecha('${p.id}','${esc(p.fecha_proc_iso)}')"><i class="ti ti-calendar"></i> ${p.fecha_proc ? 'Cirugía: <b>' + esc(p.fecha_proc) + '</b>' : 'Sin fecha de cirugía'} <span class="b">· cambiar</span></p>
   <div class="grid2" style="margin-bottom:12px">
-    <div class="tile"><p class="lb">Cobrado</p><b>${money(p.cobrado)}</b> <span class="small muted">/ ${money(p.precio)}</span></div>
-    <div class="tile g"><p class="lb">Ganancia actual</p><b class="g">${money(p.ganancia)}</b></div>
+    <div class="tile g"><p class="lb">Ganancia confirmada</p><b class="g">${money(p.ganancia)}</b></div>
+    <div class="tile"><p class="lb">Ganancia estimada</p><b>${money(p.gananciaEst)}</b></div>
   </div>
+  <p class="small muted" style="margin:-4px 0 10px">Cobrado ${money(p.cobrado)} de ${money(p.precio)}. La estimada asume el cobro completo y resta las facturas por llegar.</p>
   <div class="card">
     <p class="lb">Cobro · ${esc(p.forma_cobro)}</p>${bar(pcob, '#378ADD')}
     <p class="small ${p.saldo > 0 ? 'a' : 'g'}" style="margin:0 0 10px">${p.saldo > 0 ? 'Saldo por cobrar ' + money(p.saldo) : 'Pagado por completo'}</p>
@@ -498,9 +509,60 @@ VIEWS.proc = async (id) => {
   <div class="grid2"><button class="btn rd" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento'})"><i class="ti ti-minus"></i> Gasto</button>
   <button class="btn" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento',bio:true})"><i class="ti ti-microscope"></i> Biopsia</button></div>
   ${p.saldo > 0 ? `<a class="btn" href="${wa(p.celular, 'Hola ' + p.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(p.saldo) + ' por ' + p.tipo + '.')}" target="_blank" style="text-decoration:none;color:#1f1e1b"><i class="ti ti-brand-whatsapp" style="color:#25D366"></i> Recordar saldo por WhatsApp</a>` : ''}
-  <h2>Movimientos</h2><div class="card" style="padding:4px 14px">${p.movs.length ? p.movs.map(movRow).join('') : '<p class="small muted">Sin movimientos.</p>'}</div>
+  <h2>Facturas por llegar</h2>
+  ${(() => { const pv = p.movs.filter(m => m.tipo === 'previsto' && m.estado === 'pendiente' && !m.anulado);
+    return pv.length ? `<div class="card" style="padding:4px 14px">${pv.map(m => `<div class="row"><div class="t"><p>${esc(m.concepto)}</p><p class="small muted">anotada ${esc(m.fecha)} · estimado</p></div>
+      <div style="text-align:right"><b>~${money(m.monto)}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</span></div></div>`).join('')}</div>` : '<p class="small muted">No hay facturas pendientes.</p>'; })()}
+  <button class="btn" onclick="anotarPF('${p.id}')"><i class="ti ti-plus"></i> Anotar factura por llegar</button>
+  <h2>Movimientos</h2><div class="card" style="padding:4px 14px">${p.movs.filter(m => m.tipo !== 'previsto').length ? p.movs.filter(m => m.tipo !== 'previsto').map(movRow).join('') : '<p class="small muted">Sin movimientos.</p>'}</div>
   ${p.nota ? `<p class="small muted">Nota: ${esc(p.nota)}</p>` : ''}
   ${isAdmin() ? `<button class="btn" style="color:#A32D2D" onclick="confAnularProc('${p.id}')">Anular procedimiento</button>` : ''}`;
+};
+function cambiarFecha(id, actual) {
+  modal(`<h2>Fecha de la cirugía</h2><input type="date" id="fp" value="${esc(actual || hoyISO())}"><p class="err" id="fperr"></p>
+  <button class="btn pri" onclick="doFecha('${id}')">Guardar fecha</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doFecha(id) { try { await api('fechaProc', auth(), id, $('#fp').value); closeModal(); toast('Fecha actualizada'); await refreshInit(); go('proc', id); } catch (e) { $('#fperr').textContent = msg(e); } }
+function anotarPF(id) {
+  modal(`<h2>Anotar factura por llegar</h2><p class="small muted">Un gasto que aún no tiene factura. Se resta de la ganancia estimada y queda como recordatorio.</p>
+  <p class="lb">¿Qué factura falta?</p><input id="pfc" placeholder="Torre de laparoscopia">
+  <p class="lb">Monto estimado</p><input id="pfm" type="number" inputmode="decimal" class="monto"><p class="err" id="pferr"></p>
+  <button class="btn pri" onclick="doAnotarPF('${id}')">Guardar</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doAnotarPF(id) {
+  const c = $('#pfc').value.trim(), m = Number($('#pfm').value);
+  if (!c) return $('#pferr').textContent = 'Escribe qué factura falta llegar.';
+  if (!(m > 0)) return $('#pferr').textContent = 'Escribe un monto estimado.';
+  try { await api('anotarPorFacturar', auth(), id, c, m); closeModal(); toast('Factura por llegar anotada'); await refreshInit(); go('proc', id); } catch (e) { $('#pferr').textContent = msg(e); }
+}
+let RF = null;
+function regFactura(m) { RF = m; F = Object.assign(F || {}, { ctipo: 'Factura', cnum: '', forma: '' }); vRF(); }
+function vRF() {
+  const m = RF;
+  modal(`<h2>Registrar factura</h2><p class="small muted">${esc(m.concepto)} · ${esc(m.paciente || '')} · estimado ${money(m.monto)}</p>
+  <p class="lb">Monto real</p><input id="rfm" type="number" inputmode="decimal" class="monto" value="${esc(F.rfm || m.monto)}" oninput="F.rfm=this.value">
+  <p class="lb">Forma de pago</p>${S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vRF()`)).join('')}
+  ${compHTML('vRF()')}
+  <p class="small muted">Se registra con la fecha de hoy y queda unida al procedimiento.</p><p class="err" id="rferr"></p>
+  <button class="btn pri" onclick="doRF()">Guardar factura</button><button class="btn" onclick="F.rfm='';closeModal()">Cancelar</button>`);
+}
+async function doRF() {
+  const mo = Number($('#rfm').value);
+  if (!(mo > 0)) return $('#rferr').textContent = 'Ingresa el monto real.';
+  if (!F.forma) return $('#rferr').textContent = 'Elige la forma de pago.';
+  try {
+    await api('registrarFactura', auth(), RF.id, { monto: mo, forma: F.forma, comp_tipo: F.ctipo, comp_num: F.cnum });
+    F.rfm = ''; closeModal(); toast('Factura registrada'); await refreshInit();
+    if (S.view === 'proc') go('proc', RF.proc_id); else go(S.view, S.param);
+  } catch (e) { $('#rferr').textContent = msg(e); }
+}
+VIEWS.porfac = async () => {
+  loading();
+  let l;
+  try { l = await api('porFacturar', auth()); } catch (e) { return fail(e); }
+  $('#app').innerHTML = `<h1><i class="ti ti-file-invoice"></i> Facturas por llegar</h1>
+  ${l.length ? `<div class="card" style="padding:4px 14px">${l.map(m => `<div class="row"><div class="t tap" onclick="go('proc','${m.proc_id}')"><p>${esc(m.concepto)}</p><p class="small muted">${esc(m.proc)}</p></div>
+    <div style="text-align:right"><b>~${money(m.monto)}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</span></div></div>`).join('')}</div>` : '<p class="muted center">No hay facturas pendientes.</p>'}`;
 };
 function confAnularProc(id) {
   modal(`<h2>¿Anular este procedimiento?</h2><p class="small muted">Se anulan también sus cobros y gastos. Quedan en la hoja marcados como anulados.</p>
@@ -509,15 +571,15 @@ function confAnularProc(id) {
 async function doAnularProc(id) { try { await api('anularProc', auth(), id); closeModal(); toast('Procedimiento anulado'); await refreshInit(); go('procs'); } catch (e) { toast(msg(e), true); } }
 
 // ============ REGISTROS (movimientos) ============
-const TIPO = { ingreso: ['Ingreso', 'bd-g', 'ti-arrow-down-left'], gasto: ['Gasto', 'bd-r', 'ti-arrow-up-right'], patologia: ['Patología', 'bd-p', 'ti-microscope'], transferencia: ['Paso a consultorio', 'bd-b', 'ti-arrows-exchange'] };
+const TIPO = { ingreso: ['Ingreso', 'bd-g', 'ti-arrow-down-left'], gasto: ['Gasto', 'bd-r', 'ti-arrow-up-right'], patologia: ['Patología', 'bd-p', 'ti-microscope'], transferencia: ['Paso a consultorio', 'bd-b', 'ti-arrows-exchange'], previsto: ['Por facturar', 'bd-a', 'ti-file-invoice'] };
 function movRow(m) {
   const t = TIPO[m.tipo] || [m.tipo, 'bd-n', 'ti-point'];
-  const signo = m.tipo === 'ingreso' || m.tipo === 'transferencia' ? '+' : '−';
+  const signo = m.tipo === 'ingreso' || m.tipo === 'transferencia' ? '+' : (m.tipo === 'previsto' ? '~' : '−');
   return `<div class="row tap" onclick='verMov(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
     <i class="ti ${t[2]}" style="font-size:20px;color:var(--tx2)"></i>
     <div class="t"><p class="${m.anulado ? 'strike' : ''}">${esc(m.concepto)}</p>
-    <p class="small muted">${esc(m.fecha)} · ${esc(m.usuario)}${m.paciente ? ' · ' + esc(m.paciente) : ''}${m.forma ? ' · ' + esc(m.forma) : ''}</p></div>
-    <b class="${m.anulado ? 'strike' : (signo === '+' ? 'g' : 'r')}">${signo} ${money(m.monto)}</b></div>`;
+    <p class="small muted">${esc(m.fecha)} · ${esc(m.usuario)}${m.paciente ? ' · ' + esc(m.paciente) : ''}${m.forma ? ' · ' + esc(m.forma) : ''}${m.comprobante ? ' · ' + esc(m.comprobante) : ''}${m.tipo === 'previsto' ? ' · ' + (m.estado === 'pendiente' ? 'pendiente' : 'facturado') : ''}</p></div>
+    <b class="${m.anulado ? 'strike' : (signo === '+' ? 'g' : (signo === '~' ? 'a' : 'r'))}">${signo} ${money(m.monto)}</b></div>`;
 }
 VIEWS.movs = async (filtro) => {
   loading();
@@ -534,8 +596,9 @@ function verMov(m) {
   const t = TIPO[m.tipo] || [m.tipo, 'bd-n'];
   modal(`<span class="badge ${t[1]}">${t[0]}</span> <span class="badge bd-n">${esc(m.bolsa || '')}</span>
   <h2>${esc(m.concepto)}</h2><p class="big">${money(m.monto)}</p>
-  <p class="small muted">${esc(m.fecha)} · registró ${esc(m.usuario)}${m.forma ? ' · ' + esc(m.forma) : ''}${m.paciente ? '<br>Paciente: ' + esc(m.paciente) : ''}${m.estado ? '<br>Estado: ' + esc(m.estado) : ''}${m.nota ? '<br>Nota: ' + esc(m.nota) : ''}</p>
-  ${m.anulado ? '<p class="err">Registro anulado</p>' : (m.origen ? '<p class="small muted">Este descuento se creó solo. Para quitarlo, anula el ingreso que lo originó.</p>' : (isAdmin() ?
+  <p class="small muted">${esc(m.fecha)} · registró ${esc(m.usuario)}${m.forma ? ' · ' + esc(m.forma) : ''}${m.paciente ? '<br>Paciente: ' + esc(m.paciente) : ''}${m.estado ? '<br>Estado: ' + esc(m.estado) : ''}${m.comprobante ? '<br>Comprobante: ' + esc(m.comprobante) : ''}${m.nota ? '<br>Nota: ' + esc(m.nota) : ''}</p>
+  ${(!m.anulado && m.tipo === 'previsto' && m.estado === 'pendiente') ? `<button class="btn gr" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</button>` : ''}
+  ${m.anulado ? '<p class="err">Registro anulado</p>' : (m.origen && m.tipo === 'patologia' ? '<p class="small muted">Este descuento se creó solo. Para quitarlo, anula el ingreso que lo originó.</p>' : (isAdmin() ?
     `<button class="btn rd" onclick="doAnular('${m.id}')">Anular registro</button><p class="small muted">Si fue un error, anúlalo y vuelve a registrarlo bien.</p>` :
     `<p class="lb">¿Qué hay que corregir?</p><input id="motivo" placeholder="Ejemplo: el monto era S/ 200"><p class="err" id="merr"></p>
      <button class="btn pri" onclick="doCorreccion('${m.id}')">Pedir corrección</button>`))}

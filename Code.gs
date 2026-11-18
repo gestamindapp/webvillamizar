@@ -5,7 +5,7 @@
  */
 
 const TZ = 'America/Lima';
-const BIOPSIA_CU = 80;               // Descuento fijo por biopsia de cuello uterino (Patología)
+const BIOPSIA_CU = 80;               // Valor por defecto; el real se edita en la pestaña Ajustes
 const FORMAS = ['Efectivo', 'Transferencia', 'Yape'];
 
 const H = {
@@ -13,17 +13,18 @@ const H = {
   Catalogo:       ['id', 'categoria', 'servicio', 'precio', 'tipo', 'pap', 'biopsia_cu', 'activo'],
   Presupuesto:    ['id', 'dia', 'concepto', 'monto', 'categoria', 'desde', 'hasta', 'estimado', 'activo'],
   Movimientos:    ['id', 'fecha', 'mes', 'usuario', 'tipo', 'bolsa', 'concepto', 'monto', 'forma_pago',
-                   'paciente', 'proc_id', 'pres_id', 'origen_id', 'estado', 'nota', 'anulado'],
+                   'paciente', 'proc_id', 'pres_id', 'origen_id', 'estado', 'nota', 'anulado', 'comprobante'],
   Procedimientos: ['id', 'fecha', 'tipo', 'tipo_doc', 'num_doc', 'nombres', 'apellidos', 'celular',
-                   'precio_total', 'presupuesto_gastos', 'forma_cobro', 'nota', 'usuario', 'anulado'],
+                   'precio_total', 'presupuesto_gastos', 'forma_cobro', 'nota', 'usuario', 'anulado', 'fecha_proc'],
   Pacientes:      ['num_doc', 'tipo_doc', 'nombres', 'apellidos', 'celular', 'actualizado'],
-  Correcciones:   ['id', 'fecha', 'usuario', 'mov_id', 'detalle', 'motivo', 'estado']
+  Correcciones:   ['id', 'fecha', 'usuario', 'mov_id', 'detalle', 'motivo', 'estado'],
+  Ajustes:        ['ajuste', 'valor', 'nota']
 };
 // Columnas que deben guardarse como texto (para no perder ceros ni convertir a fecha)
 const TEXTO = {
   Usuarios: ['id', 'pin'], Catalogo: ['id'], Presupuesto: ['id', 'desde', 'hasta'],
   Movimientos: ['id', 'mes', 'proc_id', 'pres_id', 'origen_id'],
-  Procedimientos: ['id', 'num_doc', 'celular'], Pacientes: ['num_doc', 'celular'],
+  Procedimientos: ['id', 'num_doc', 'celular', 'fecha_proc'], Pacientes: ['num_doc', 'celular'],
   Correcciones: ['id', 'mov_id']
 };
 
@@ -81,6 +82,27 @@ function lock_(fn) {
   try { return fn(); } finally { l.releaseLock(); }
 }
 function suma_(arr) { return num_(arr.reduce(function (s, m) { return s + num_(m.monto); }, 0)); }
+function ajuste_(k, def) {
+  try {
+    const r = rows_('Ajustes').find(function (x) { return String(x.ajuste).trim() === k; });
+    return r && String(r.valor) !== '' ? num_(r.valor) : def;
+  } catch (e) { return def; }
+}
+function biopsiaCU_() { return ajuste_('biopsia_cuello_uterino', BIOPSIA_CU); }
+const COMP = ['Factura', 'Boleta', 'Recibo', 'Código de operación', 'Sin comprobante'];
+function comprobante_(tipo, numero) {
+  tipo = String(tipo || '').trim(); numero = String(numero || '').trim();
+  if (!tipo && !numero) return '';
+  if (tipo && COMP.indexOf(tipo) < 0) throw new Error('Tipo de comprobante no válido.');
+  if (tipo === 'Sin comprobante') return 'Sin comprobante';
+  return ((tipo || 'Comprobante') + (numero ? ' ' + numero : '')).trim();
+}
+function fechaOk_(f) {
+  f = String(f || '').trim();
+  if (f && !/^\d{4}-\d{2}-\d{2}$/.test(f)) throw new Error('Revisa la fecha de la cirugía.');
+  return f;
+}
+function fechaTxt_(f) { f = mm_(f); return /^\d{4}-\d{2}-\d{2}/.test(f) ? f.slice(8, 10) + '/' + f.slice(5, 7) + '/' + f.slice(0, 4) : ''; }
 function forma_(f) { if (FORMAS.indexOf(f) < 0) throw new Error('Elige la forma de pago.'); return f; }
 
 // ================= Acceso con PIN =================
@@ -136,7 +158,7 @@ function init(a) {
   });
   const top = Object.keys(cnt).sort(function (x, y) { return cnt[y] - cnt[x]; }).slice(0, 4);
   return { user: { id: String(u.id), nombre: u.nombre, rol: String(u.rol).toLowerCase() },
-    cat: cat, pres: pres, top: top, procs: procs_(movs), formas: FORMAS, biopsiaCU: BIOPSIA_CU, mes: mes };
+    cat: cat, pres: pres, top: top, procs: procs_(movs), formas: FORMAS, comps: COMP, biopsiaCU: biopsiaCU_(), mes: mes };
 }
 
 // ================= Procedimientos =================
@@ -149,12 +171,14 @@ function procs_(movs) {
     const cobrado = suma_(mine.filter(function (m) { return m.tipo === 'ingreso'; }));
     const gastos = suma_(mine.filter(function (m) { return m.tipo === 'gasto'; }));
     const patologia = suma_(mine.filter(function (m) { return m.tipo === 'patologia'; }));
+    const porFacturar = suma_(mine.filter(function (m) { return m.tipo === 'previsto' && m.estado === 'pendiente'; }));
     const precio = num_(p.precio_total);
     return { id: id, fecha: fmt_(p.fecha, 'dd/MM/yyyy'), mesCreado: fmt_(p.fecha, 'yyyy-MM'), tipo: p.tipo,
       tipo_doc: p.tipo_doc, num_doc: String(p.num_doc), nombre: (p.nombres + ' ' + p.apellidos).trim(),
       celular: String(p.celular), precio: precio, presupuesto: num_(p.presupuesto_gastos),
       forma_cobro: p.forma_cobro, nota: p.nota, cobrado: cobrado, gastos: num_(gastos + patologia),
-      patologia: patologia, saldo: Math.max(0, num_(precio - cobrado)), ganancia: num_(cobrado - gastos - patologia) };
+      patologia: patologia, porFacturar: porFacturar, saldo: Math.max(0, num_(precio - cobrado)), ganancia: num_(cobrado - gastos - patologia),
+      gananciaEst: num_(precio - gastos - patologia - porFacturar), fecha_proc: fechaTxt_(p.fecha_proc), fecha_proc_iso: mm_(p.fecha_proc).slice(0, 10) };
   }).reverse();
 }
 
@@ -196,13 +220,14 @@ function crearProcedimiento(a, d) {
   if (pres < 0) throw new Error('El presupuesto de gastos no puede ser negativo.');
   if (pago < 0 || pago > precio) throw new Error('El pago no puede ser mayor al precio total.');
   if (pago > 0) forma_(d.forma);
+  const fproc = fechaOk_(d.fecha_proc);
   return lock_(function () {
     upsertPac_(pac);
     const id = id_(), now = new Date();
     add_('Procedimientos', Object.assign({ id: id, fecha: now, tipo: cat.servicio }, pac, {
       precio_total: precio, presupuesto_gastos: pres,
       forma_cobro: d.forma_cobro === 'adelantos' ? 'Con adelantos' : 'Pago único',
-      nota: d.nota || '', usuario: u.nombre, anulado: 'NO' }));
+      nota: d.nota || '', usuario: u.nombre, anulado: 'NO', fecha_proc: fproc }));
     if (pago > 0) {
       add_('Movimientos', { id: id_(), fecha: now, mes: mesActual_(), usuario: u.nombre, tipo: 'ingreso',
         bolsa: 'procedimiento', concepto: cat.servicio + ' – ' + (pago >= precio ? 'pago completo' : 'adelanto'),
@@ -221,6 +246,55 @@ function detalleProc(a, id) {
   return p;
 }
 
+function fechaProc(a, id, fecha) {
+  chk_(a);
+  const f = fechaOk_(fecha);
+  const p = rows_('Procedimientos').find(function (x) { return String(x.id) === String(id); });
+  if (!p) throw new Error('Procedimiento no encontrado.');
+  set_('Procedimientos', p._row, { fecha_proc: f });
+  return { ok: true };
+}
+function anotarPorFacturar(a, procId, concepto, monto) {
+  const u = chk_(a);
+  concepto = String(concepto || '').trim(); monto = num_(monto);
+  if (!concepto) throw new Error('Escribe qué factura falta llegar.');
+  if (!(monto > 0)) throw new Error('Escribe un monto estimado.');
+  return lock_(function () {
+    const p = procs_().find(function (x) { return x.id === String(procId); });
+    if (!p) throw new Error('Procedimiento no encontrado.');
+    add_('Movimientos', { id: id_(), fecha: new Date(), mes: mesActual_(), usuario: u.nombre, tipo: 'previsto', bolsa: 'procedimiento',
+      concepto: concepto, monto: monto, paciente: p.nombre, proc_id: p.id, estado: 'pendiente', anulado: 'NO' });
+    return { ok: true };
+  });
+}
+function registrarFactura(a, prevId, d) {
+  const u = chk_(a);
+  const monto = num_(d.monto);
+  if (!(monto > 0)) throw new Error('Ingresa el monto real.');
+  forma_(d.forma);
+  const comp = comprobante_(d.comp_tipo, d.comp_num);
+  return lock_(function () {
+    const pv = rows_('Movimientos').find(function (m) { return String(m.id) === String(prevId) && m.tipo === 'previsto'; });
+    if (!pv || yes_(pv.anulado)) throw new Error('Factura por llegar no encontrada.');
+    if (pv.estado !== 'pendiente') throw new Error('Esta factura ya fue registrada.');
+    add_('Movimientos', { id: id_(), fecha: new Date(), mes: mesActual_(), usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
+      concepto: pv.concepto, monto: monto, forma_pago: d.forma, paciente: pv.paciente, proc_id: String(pv.proc_id),
+      origen_id: String(pv.id), nota: d.nota || '', anulado: 'NO', comprobante: comp });
+    set_('Movimientos', pv._row, { estado: 'facturado' });
+    return { ok: true };
+  });
+}
+function porFacturar(a) {
+  chk_(a);
+  const movs = rows_('Movimientos');
+  const procs = procs_(movs);
+  return movs.filter(function (m) { return m.tipo === 'previsto' && m.estado === 'pendiente' && !yes_(m.anulado); }).map(function (m) {
+    const o = movOut_(m);
+    const p = procs.find(function (x) { return x.id === String(m.proc_id); });
+    o.proc = p ? p.tipo + ' · ' + p.nombre + (p.fecha_proc ? ' (' + p.fecha_proc + ')' : '') : '';
+    return o;
+  }).reverse();
+}
 function anularProc(a, id) {
   adm_(a);
   return lock_(function () {
@@ -262,7 +336,7 @@ function registrarIngreso(a, d) {
         concepto: concepto, monto: m, paciente: pac, origen_id: id, estado: 'pendiente', anulado: 'NO' });
     }
     if (num_(c.pap) > 0) pat('PAP – ' + c.servicio, num_(c.pap));
-    if (d.biopsia && yes_(c.biopsia_cu)) pat('Biopsia de cuello uterino – ' + c.servicio, BIOPSIA_CU);
+    if (d.biopsia && yes_(c.biopsia_cu)) pat('Biopsia de cuello uterino – ' + c.servicio, biopsiaCU_());
     return { ok: true, neto: num_(monto - desc) };
   });
 }
@@ -286,7 +360,8 @@ function registrarGasto(a, d) {
       if (!conc) throw new Error('Escribe el concepto del gasto.');
       forma_(d.forma);
       add_('Movimientos', { id: id_(), fecha: now, mes: mes, usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
-        concepto: conc, monto: monto, forma_pago: d.forma, paciente: p.nombre, proc_id: p.id, nota: nota, anulado: 'NO' });
+        concepto: conc, monto: monto, forma_pago: d.forma, paciente: p.nombre, proc_id: p.id, nota: nota, anulado: 'NO',
+        comprobante: comprobante_(d.comp_tipo, d.comp_num) });
       return { ok: true };
     }
     forma_(d.forma);
@@ -298,7 +373,8 @@ function registrarGasto(a, d) {
       concepto = p.concepto + (conc ? ' – ' + conc : '');
     } else if (!conc) throw new Error('Escribe el concepto del gasto.');
     add_('Movimientos', { id: id_(), fecha: now, mes: mes, usuario: u.nombre, tipo: 'gasto', bolsa: 'consultorio',
-      concepto: concepto, monto: monto, forma_pago: d.forma, pres_id: pres, nota: nota, anulado: 'NO' });
+      concepto: concepto, monto: monto, forma_pago: d.forma, pres_id: pres, nota: nota, anulado: 'NO',
+      comprobante: comprobante_(d.comp_tipo, d.comp_num) });
     return { ok: true };
   });
 }
@@ -318,7 +394,8 @@ function transferir(a, monto, nota) {
 function movOut_(m) {
   return { id: String(m.id), fecha: fmt_(m.fecha, 'dd/MM HH:mm'), tipo: m.tipo, bolsa: m.bolsa, concepto: m.concepto,
     monto: num_(m.monto), forma: m.forma_pago, paciente: m.paciente, usuario: m.usuario, estado: m.estado,
-    nota: m.nota, anulado: yes_(m.anulado), origen: String(m.origen_id || ''), proc_id: String(m.proc_id || '') };
+    nota: m.nota, anulado: yes_(m.anulado), origen: String(m.origen_id || ''), proc_id: String(m.proc_id || ''),
+    comprobante: m.comprobante || '' };
 }
 function movimientos(a, mes) {
   chk_(a);
@@ -329,8 +406,15 @@ function anular(a, id) {
   adm_(a);
   return lock_(function () {
     let n = 0;
-    rows_('Movimientos').forEach(function (m) {
-      if (String(m.id) === String(id) || String(m.origen_id) === String(id)) { set_('Movimientos', m._row, { anulado: 'SI' }); n++; }
+    const all = rows_('Movimientos');
+    all.forEach(function (m) {
+      if (String(m.id) === String(id) || String(m.origen_id) === String(id)) {
+        set_('Movimientos', m._row, { anulado: 'SI' }); n++;
+        if (String(m.id) === String(id) && m.tipo === 'gasto' && m.origen_id) {
+          const pv = all.find(function (x) { return String(x.id) === String(m.origen_id) && x.tipo === 'previsto'; });
+          if (pv && !yes_(pv.anulado)) set_('Movimientos', pv._row, { estado: 'pendiente' });
+        }
+      }
     });
     if (!n) throw new Error('Registro no encontrado.');
     rows_('Correcciones').forEach(function (c) {
@@ -408,6 +492,7 @@ function resumen_(mes) {
     formas[m.forma_pago] = num_((formas[m.forma_pago] || 0) + num_(m.monto));
   });
   const patPend = suma_(all.filter(function (m) { return m.tipo === 'patologia' && !yes_(m.anulado) && m.estado !== 'pagado'; }));
+  const prevPend = all.filter(function (m) { return m.tipo === 'previsto' && !yes_(m.anulado) && m.estado === 'pendiente'; });
   let dias = 0;
   if (mes === mesActual_()) {
     const y = Number(mes.slice(0, 4)), mo = Number(mes.slice(5, 7));
@@ -420,7 +505,7 @@ function resumen_(mes) {
     procedimientos: { ingresos: pIng, gastos: pGas, patologia: pPat, transferido: tr, ganancia: num_(pIng - pGas - pPat - tr) },
     total: { ingresos: num_(cIng + pIng), egresos: num_(cGas + cPat + pGas + pPat), disponible: num_(cIng + pIng - cGas - cPat - pGas - pPat) },
     pres: pres, porCobrar: porCobrar, totalPorCobrar: num_(porCobrar.reduce(function (s, p) { return s + p.saldo; }, 0)),
-    formas: formas, patPend: patPend
+    formas: formas, patPend: patPend, porFacturar: { n: prevPend.length, total: suma_(prevPend) }
   };
 }
 
@@ -482,7 +567,7 @@ function datosInforme_(mes) {
 }
 function e_(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function s_(n) { return 'S/ ' + num_(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-const TIPO_TXT = { ingreso: 'Ingreso', gasto: 'Gasto', patologia: 'Patología', transferencia: 'Paso a consultorio' };
+const TIPO_TXT = { ingreso: 'Ingreso', gasto: 'Gasto', patologia: 'Patología', transferencia: 'Paso a consultorio', previsto: 'Por facturar' };
 
 function informePDF(a, mes) {
   chk_(a);
@@ -519,12 +604,15 @@ function informePDF(a, mes) {
     r.pres.map(function (x) { return [x.dia, x.concepto, x.cuota, s_(x.monto), s_(x.pagado), x.estado]; }));
   h += '<h2>Otros gastos del consultorio</h2>' + tabla(['Fecha', 'Concepto', 'Forma', 'Monto'],
     D.otrosGastos.map(function (m) { return [fmt_(m.fecha, 'dd/MM'), m.concepto, m.forma_pago, s_(m.monto)]; }));
-  h += '<h2>Procedimientos</h2>' + tabla(['Tipo', 'Paciente', 'Documento', 'Precio', 'Cobrado', 'Saldo', 'Presup. gastos', 'Gastos', 'Ganancia'],
-    D.procs.map(function (x) { return [x.tipo, x.nombre, x.tipo_doc + ' ' + x.num_doc, s_(x.precio), s_(x.cobrado), s_(x.saldo), s_(x.presupuesto), s_(x.gastos), s_(x.ganancia)]; }));
+  h += '<h2>Procedimientos</h2>' + tabla(['Fecha cirugía', 'Tipo', 'Paciente', 'Documento', 'Precio', 'Cobrado', 'Saldo', 'Presup. gastos', 'Gastos', 'Por facturar', 'Ganancia', 'Ganancia est.'],
+    D.procs.map(function (x) { return [x.fecha_proc || x.fecha, x.tipo, x.nombre, x.tipo_doc + ' ' + x.num_doc, s_(x.precio), s_(x.cobrado), s_(x.saldo), s_(x.presupuesto), s_(x.gastos), s_(x.porFacturar), s_(x.ganancia), s_(x.gananciaEst)]; }));
   h += '<h2>Patología</h2>' + tabla(['Fecha', 'Concepto', 'Paciente', 'Bolsa', 'Estado', 'Monto'],
     D.pat.map(function (m) { return [fmt_(m.fecha, 'dd/MM'), m.concepto, m.paciente, m.bolsa, m.estado, s_(m.monto)]; }));
-  h += '<h2>Detalle de movimientos</h2>' + tabla(['Fecha', 'Tipo', 'Bolsa', 'Concepto', 'Paciente', 'Forma', 'Registró', 'Monto'],
-    r.mv.map(function (m) { return [fmt_(m.fecha, 'dd/MM HH:mm'), TIPO_TXT[m.tipo] || m.tipo, m.bolsa, m.concepto, m.paciente, m.forma_pago, m.usuario, s_(m.monto)]; }));
+  const prev = r.all.filter(function (m) { return m.tipo === 'previsto' && !yes_(m.anulado) && m.estado === 'pendiente'; });
+  h += '<h2>Facturas por llegar (estimado, aún no pagado)</h2>' + tabla(['Anotada', 'Concepto', 'Paciente', 'Estimado'],
+    prev.map(function (m) { return [fmt_(m.fecha, 'dd/MM'), m.concepto, m.paciente, s_(m.monto)]; }));
+  h += '<h2>Detalle de movimientos</h2>' + tabla(['Fecha', 'Tipo', 'Bolsa', 'Concepto', 'Paciente', 'Forma', 'Comprobante', 'Registró', 'Monto'],
+    r.mv.filter(function (m) { return m.tipo !== 'previsto'; }).map(function (m) { return [fmt_(m.fecha, 'dd/MM HH:mm'), TIPO_TXT[m.tipo] || m.tipo, m.bolsa, m.concepto, m.paciente, m.forma_pago, m.comprobante, m.usuario, s_(m.monto)]; }));
   h += '</body></html>';
   const blob = HtmlService.createHtmlOutput(h).getAs(MimeType.PDF);
   return { name: 'Informe_Consultorio_' + mes + '.pdf', mime: 'application/pdf', b64: Utilities.base64Encode(blob.getBytes()) };
@@ -551,13 +639,13 @@ function informeExcel(a, mes) {
     ['Ingresos procedimientos', p.ingresos], ['Gastos procedimientos', p.gastos], ['Patología (procedimientos)', p.patologia],
     ['Ganancia procedimientos', p.ganancia], ['TOTAL INGRESOS', r.total.ingresos], ['TOTAL EGRESOS', r.total.egresos],
     ['DISPONIBLE DEL MES', r.total.disponible], ['Saldos por cobrar', r.totalPorCobrar], ['Patología por pagar', r.patPend]], true);
-  put('Movimientos', [['Fecha', 'Tipo', 'Bolsa', 'Concepto', 'Paciente', 'Forma de pago', 'Registró', 'Monto', 'Nota']]
-    .concat(r.mv.map(function (m) { return [fmt_(m.fecha), TIPO_TXT[m.tipo] || m.tipo, m.bolsa, m.concepto, m.paciente, m.forma_pago, m.usuario, num_(m.monto), m.nota]; })));
+  put('Movimientos', [['Fecha', 'Tipo', 'Bolsa', 'Concepto', 'Paciente', 'Forma de pago', 'Comprobante', 'Registró', 'Monto', 'Nota']]
+    .concat(r.mv.filter(function (m) { return m.tipo !== 'previsto'; }).map(function (m) { return [fmt_(m.fecha), TIPO_TXT[m.tipo] || m.tipo, m.bolsa, m.concepto, m.paciente, m.forma_pago, m.comprobante, m.usuario, num_(m.monto), m.nota]; })));
   put('Servicios', [['Servicio', 'Cantidad', 'Total']].concat(Object.keys(D.serv).map(function (k) { return [k, D.serv[k].n, D.serv[k].t]; })));
   put('Presupuesto', [['Día', 'Concepto', 'Categoría', 'Cuota', 'Presupuestado', 'Pagado', 'Estado']]
     .concat(r.pres.map(function (x) { return [x.dia, x.concepto, x.categoria, x.cuota, x.monto, x.pagado, x.estado]; })));
-  put('Procedimientos', [['Fecha', 'Tipo', 'Paciente', 'Documento', 'Celular', 'Precio', 'Cobrado', 'Saldo', 'Presup. gastos', 'Gastos', 'Ganancia']]
-    .concat(D.procs.map(function (x) { return [x.fecha, x.tipo, x.nombre, x.tipo_doc + ' ' + x.num_doc, x.celular, x.precio, x.cobrado, x.saldo, x.presupuesto, x.gastos, x.ganancia]; })));
+  put('Procedimientos', [['Fecha cirugía', 'Tipo', 'Paciente', 'Documento', 'Celular', 'Precio', 'Cobrado', 'Saldo', 'Presup. gastos', 'Gastos', 'Por facturar', 'Ganancia', 'Ganancia estimada']]
+    .concat(D.procs.map(function (x) { return [x.fecha_proc || x.fecha, x.tipo, x.nombre, x.tipo_doc + ' ' + x.num_doc, x.celular, x.precio, x.cobrado, x.saldo, x.presupuesto, x.gastos, x.porFacturar, x.ganancia, x.gananciaEst]; })));
   put('Patología', [['Fecha', 'Concepto', 'Paciente', 'Bolsa', 'Estado', 'Monto']]
     .concat(D.pat.map(function (m) { return [fmt_(m.fecha, 'dd/MM/yyyy'), m.concepto, m.paciente, m.bolsa, m.estado, num_(m.monto)]; })));
   SpreadsheetApp.flush();
@@ -578,6 +666,15 @@ function instalar() {
       s.appendRow(H[n]);
       s.setFrozenRows(1);
       s.getRange(1, 1, 1, H[n].length).setFontWeight('bold').setBackground('#E6F1FB');
+    } else {
+      // Actualización: agrega al final las columnas nuevas que falten
+      const head = s.getRange(1, 1, 1, Math.max(1, s.getLastColumn())).getValues()[0].map(String);
+      H[n].forEach(function (k) {
+        if (head.indexOf(k) < 0) {
+          head.push(k);
+          s.getRange(1, head.length).setValue(k).setFontWeight('bold').setBackground('#E6F1FB');
+        }
+      });
     }
     (TEXTO[n] || []).forEach(function (k) {
       const c = H[n].indexOf(k) + 1;
@@ -653,6 +750,9 @@ function instalar() {
       add_('Presupuesto', { id: 'b' + (i + 1), dia: x[0], concepto: x[1], monto: x[2], categoria: x[3],
         desde: x[4] ? '2026-11' : '', hasta: x[4], estimado: x[5], activo: 'SI' });
     });
+  }
+  if (rows_('Ajustes').length === 0) {
+    add_('Ajustes', { ajuste: 'biopsia_cuello_uterino', valor: BIOPSIA_CU, nota: 'Descuento de Patología por biopsia de cuello uterino (S/)' });
   }
   Logger.log('Listo. Revisa la hoja "Usuarios" para ver los PIN de cada persona.');
 }
