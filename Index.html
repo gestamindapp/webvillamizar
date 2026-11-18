@@ -185,7 +185,7 @@ function showNav() {
 const VIEWS = {};
 function go(v, p) {
   S.view = v; S.param = p; closeModal();
-  document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('on', d.dataset.v === v || (v === 'proc' && d.dataset.v === 'procs')));
+  document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('on', d.dataset.v === v || (v === 'proc' && d.dataset.v === 'procs') || (v === 'dia' && d.dataset.v === 'inicio')));
   window.scrollTo(0, 0);
   VIEWS[v](p);
 }
@@ -204,7 +204,7 @@ VIEWS.inicio = async () => {
 function pintarInicio(r, actualizando) {
   const c = r.consultorio, p = r.procedimientos, pc = pct(c.neto, c.meta);
   const prox = r.pres.filter(x => x.estado === 'proximo' || x.estado === 'vencido');
-  $('#app').innerHTML = mnav().replace('</b>', '</b>' + (actualizando ? ' <span class="badge bd-b" id="upd"><i class="ti ti-refresh"></i> Actualizando…</span>' : '')) + `
+  $('#app').innerHTML = mnav().replace('</b>', '</b>' + (actualizando ? ' <span class="badge bd-b" id="upd"><i class="ti ti-refresh"></i> Actualizando…</span>' : '')) + tarjetaHoy(r.hoy) + `
   <div class="card tap" onclick="go('pres')">
     <p class="mid"><i class="ti ti-stethoscope"></i> Consultorio</p>
     <p class="lb">Debe cubrir el presupuesto general</p>
@@ -248,6 +248,55 @@ function pintarInicio(r, actualizando) {
   ${r.porFacturar && r.porFacturar.n ? `<div class="card tap" onclick="go('porfac')"><div class="row"><span><i class="ti ti-file-invoice"></i> Pagos pendientes de procedimientos (${r.porFacturar.n})</span><b class="a">~${money(r.porFacturar.total)}</b></div></div>` : ''}
   ${r.patPend ? `<div class="card tap" onclick="go('pat')"><div class="row"><span><i class="ti ti-microscope"></i> Por pagar a Patología</span><b class="a">${money(r.patPend)}</b></div></div>` : ''}`;
 }
+// ============ PRODUCCIÓN DEL DÍA ============
+function tarjetaHoy(d) {
+  if (!d || S.mes !== S.init.mes) return '';
+  return `<div class="card tap" style="border:2px solid #85B7EB" onclick="go('dia')">
+    <div style="display:flex;justify-content:space-between;align-items:center"><p class="mid"><i class="ti ti-calendar-event"></i> Hoy · ${esc(nomDia(d.fecha, true))}</p><span class="small b">Ver detalle <i class="ti ti-chevron-right"></i></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+      <div class="tile g"><p class="lb">Producción</p><b class="g">${money(d.prod)}</b></div>
+      <div class="tile r"><p class="lb">Gastos</p><b class="r">${money(d.gastos)}</b></div>
+      <div class="tile"><p class="lb">Queda</p><b>${money(d.queda)}</b></div>
+    </div>
+    <p class="small muted" style="margin:8px 0 0">${d.n ? d.n + (d.n === 1 ? ' cobro' : ' cobros') + ' · mañana ' + money(d.manana) + ' · tarde ' + money(d.tarde) : 'Aún no hay cobros hoy'}</p></div>`;
+}
+function isoDate(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function nomDia(iso, corto) {
+  const t = isoDate(iso).toLocaleDateString('es-PE', corto ? { weekday: 'long', day: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'short' });
+  return t.replace(/\./g, '');
+}
+function moverDia(iso, n) { const d = isoDate(iso); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+VIEWS.dia = async (iso) => {
+  const hoy = hoyISO();
+  iso = iso && iso <= hoy ? iso : hoy;
+  const etiqueta = iso === hoy ? 'Hoy' : (iso === moverDia(hoy, -1) ? 'Ayer' : '');
+  const cab = `<p class="small tap b" onclick="go('inicio')"><i class="ti ti-arrow-left"></i> Inicio</p>
+  <div class="mnav"><i class="ti ti-chevron-left" onclick="go('dia','${moverDia(iso, -1)}')"></i><b>${etiqueta ? etiqueta + ' · ' : ''}${esc(nomDia(iso))}</b>
+  <i class="ti ti-chevron-right" onclick="go('dia','${moverDia(iso, 1)}')" style="${iso >= hoy ? 'visibility:hidden' : ''}"></i></div>`;
+  $('#app').innerHTML = cab + '<div class="loading">Cargando…</div>';
+  let d;
+  try { d = await api('dia', auth(), iso); } catch (e) { return fail(e); }
+  if (S.view !== 'dia' || (S.param && S.param !== iso)) return;
+  const hT = d.horaTarde > 12 ? (d.horaTarde - 12) + ' p. m.' : d.horaTarde + ' a. m.';
+  const formas = Object.keys(d.formas).sort((a, b) => d.formas[b] - d.formas[a]);
+  const fila = (x, signo) => `<div class="row"><div class="t"><p>${x.hora ? '<span class="muted">' + esc(x.hora) + '</span> · ' : ''}${esc(x.concepto)}</p>
+    <p class="small muted">${esc(x.usuario || '')}${x.paciente ? ' · ' + esc(x.paciente) : ''}${x.forma ? ' · ' + esc(x.forma) : ''}${x.tipo === 'patologia' ? ' · Patología' : ''}${x.bolsa === 'procedimiento' ? ' · Procedimiento' : ''}</p></div>
+    <b class="${signo === '+' ? 'g' : 'r'}">${signo} ${money(x.monto)}</b></div>`;
+  $('#app').innerHTML = cab + `
+  <div class="card">
+    <div class="grid2"><div class="tile g"><p class="lb">Producción</p><p class="mid g">${money(d.prod)}</p></div>
+    <div class="tile r"><p class="lb">Gastos</p><p class="mid r">${money(d.gastos)}</p></div></div>
+    <div class="row" style="margin-top:4px"><b>Queda del día</b><b class="${d.queda >= 0 ? '' : 'r'}">${money(d.queda)}</b></div>
+  </div>
+  <div class="card"><p class="lb">Por turno</p>
+    <div class="row"><span><i class="ti ti-sun"></i> Mañana (antes de las ${hT})</span><b>${money(d.manana)} <span class="muted small">· ${d.nM}</span></b></div>
+    <div class="row"><span><i class="ti ti-moon"></i> Tarde (desde las ${hT})</span><b>${money(d.tarde)} <span class="muted small">· ${d.nT}</span></b></div>
+  </div>
+  ${formas.length ? `<div class="card"><p class="lb">Por forma de pago</p>${formas.map(f => `<div class="row"><span>${esc(f)}</span><b>${money(d.formas[f])}</b></div>`).join('')}</div>` : ''}
+  <div class="card"><p class="lb">Cobros (${d.ing.length})</p>${d.ing.length ? d.ing.map(x => fila(x, '+')).join('') : '<p class="small muted" style="margin:0">Sin cobros este día.</p>'}</div>
+  <div class="card"><p class="lb">Gastos (${d.egr.length})</p>${d.egr.length ? d.egr.map(x => fila(x, '−')).join('') : '<p class="small muted" style="margin:0">Sin gastos este día.</p>'}</div>
+  <p class="small muted center">No incluye registros anulados ni pagos por facturar.</p>`;
+};
 function fail(e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p><button class="btn" onclick="go(S.view,S.param)">Reintentar</button>`; if (/PIN|ingresar/i.test(msg(e))) salir(); }
 
 // ============ REGISTRAR ============

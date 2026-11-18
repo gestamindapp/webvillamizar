@@ -216,6 +216,7 @@ function init(a) {
 function arranque(a, mes) {
   const ini = init(a);
   const r = resumen_(mes || ini.mes);
+  r.hoy = diaRes_(r.all, hoyIso_(), false);
   delete r.all; delete r.mv; delete r.procs;
   return { init: ini, resumen: r };
 }
@@ -524,6 +525,42 @@ function movOut_(m) {
     nota: m.nota, anulado: yes_(m.anulado), origen: String(m.origen_id || ''), proc_id: String(m.proc_id || ''),
     comprobante: m.comprobante || '' };
 }
+// ================= Producción del día =================
+const HORA_TARDE = 15; // la tarde empieza a las 3:00 p. m.
+function diaRes_(all, iso, detalle) {
+  const r = { fecha: iso, prod: 0, gastos: 0, manana: 0, tarde: 0, nM: 0, nT: 0, formas: {}, ing: [], egr: [] };
+  all.forEach(function (m) {
+    if (yes_(m.anulado) || !(m.fecha instanceof Date)) return;
+    if (m.tipo !== 'ingreso' && m.tipo !== 'gasto' && m.tipo !== 'patologia') return;
+    if (Utilities.formatDate(m.fecha, TZ, 'yyyy-MM-dd') !== iso) return;
+    const monto = num_(m.monto), hora = Utilities.formatDate(m.fecha, TZ, 'HH:mm');
+    if (m.tipo === 'ingreso') {
+      r.prod += monto;
+      if (Number(hora.slice(0, 2)) < HORA_TARDE) { r.manana += monto; r.nM++; } else { r.tarde += monto; r.nT++; }
+      const f = m.forma_pago || 'Sin forma';
+      r.formas[f] = num_((r.formas[f] || 0) + monto);
+      if (detalle) r.ing.push({ hora: hora, concepto: m.concepto, monto: monto, forma: m.forma_pago, usuario: m.usuario, paciente: m.paciente, bolsa: m.bolsa });
+    } else {
+      r.gastos += monto;
+      if (detalle) r.egr.push({ hora: hora === '00:00' ? '' : hora, concepto: m.concepto, monto: monto, forma: m.forma_pago, usuario: m.usuario, tipo: m.tipo, bolsa: m.bolsa });
+    }
+  });
+  r.prod = num_(r.prod); r.gastos = num_(r.gastos); r.manana = num_(r.manana); r.tarde = num_(r.tarde);
+  r.queda = num_(r.prod - r.gastos); r.n = r.nM + r.nT;
+  const ord = function (x, y) { return x.hora < y.hora ? -1 : x.hora > y.hora ? 1 : 0; };
+  r.ing.sort(ord); r.egr.sort(ord);
+  return r;
+}
+function dia(a, iso) {
+  chk_(a);
+  iso = /^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) ? String(iso) : hoyIso_();
+  if (iso > hoyIso_()) iso = hoyIso_();
+  const r = diaRes_(rows_('Movimientos'), iso, true);
+  r.esHoy = iso === hoyIso_();
+  r.horaTarde = HORA_TARDE;
+  return r;
+}
+
 function movimientos(a, mes) {
   chk_(a);
   mes = mes || mesActual_();
