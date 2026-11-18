@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--bg:#F4F3EE;--card:#fff;--tx:#1f1e1b;--tx2:#6b6a64;--tx3:#9a9890;--bd:#e3e1d9;--bd2:#cfccc2;
+--g:#3B6D11;--gbg:#EAF3DE;--r:#A32D2D;--rbg:#FCEBEB;--b:#185FA5;--bbg:#E6F1FB;--a:#854F0B;--abg:#FAEEDA;--p:#534AB7;--pbg:#EEEDFE}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.4}
+#app{max-width:520px;margin:0 auto;padding:14px 14px 96px}
+h1{font-size:20px;font-weight:600;margin:4px 0 12px}
+h2{font-size:16px;font-weight:600;margin:16px 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.lb{font-size:12px;color:var(--tx2);margin:0 0 6px}
+.big{font-size:26px;font-weight:600;margin:0}
+.mid{font-size:18px;font-weight:600;margin:0}
+.muted{color:var(--tx2)}.small{font-size:13px}
+.g{color:var(--g)}.r{color:var(--r)}.a{color:var(--a)}.b{color:var(--b)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{border-radius:10px;padding:10px;background:#F1EFE8}
+.tile.g{background:var(--gbg)}.tile.r{background:var(--rbg)}
+.bar{height:9px;border-radius:5px;background:#ECEAE3;overflow:hidden;margin:6px 0}
+.bar>div{height:100%;border-radius:5px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border-bottom:none}
+.row .t{flex:1;min-width:0}
+.row .t p{margin:0}
+.tap{cursor:pointer}
+.sel{background:var(--bbg);border-radius:10px;padding-left:8px;padding-right:8px;color:var(--b)}
+.chip{display:inline-block;padding:7px 12px;border:1px solid var(--bd2);border-radius:18px;margin:0 6px 8px 0;font-size:14px;background:#fff;cursor:pointer}
+.chip.on{background:var(--bbg);color:var(--b);border-color:#85B7EB;font-weight:600}
+.seg{display:grid;border:1px solid var(--bd2);border-radius:10px;overflow:hidden;margin-bottom:12px;background:#fff}
+.seg.two{grid-template-columns:1fr 1fr}.seg.three{grid-template-columns:1fr 1fr 1fr}
+.seg div{padding:10px 4px;text-align:center;cursor:pointer;font-size:14px}
+.seg .on{background:var(--bbg);color:var(--b);font-weight:600}
+.seg .on.g{background:var(--gbg);color:var(--g)}.seg .on.r{background:var(--rbg);color:var(--r)}
+input,select,textarea{width:100%;font-size:16px;padding:11px 12px;border:1px solid var(--bd2);border-radius:10px;background:#fff;color:var(--tx);margin-bottom:12px;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:2px solid #85B7EB;border-color:#85B7EB}
+.monto{font-size:30px;font-weight:600;text-align:center}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:1px solid var(--bd2);background:#fff;font-size:16px;font-weight:600;text-align:center;cursor:pointer;color:var(--tx);margin-bottom:10px}
+.btn.pri{background:#1f1e1b;color:#fff;border-color:#1f1e1b}
+.btn.gr{background:#3B6D11;color:#fff;border-color:#3B6D11}
+.btn.rd{background:#A32D2D;color:#fff;border-color:#A32D2D}
+.btn.sm{display:inline-block;width:auto;padding:8px 14px;font-size:14px;margin:0 6px 6px 0}
+.btn[disabled]{opacity:.6}
+.err{color:var(--r);font-size:14px;margin:0 0 10px}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600}
+.bd-g{background:var(--gbg);color:var(--g)}.bd-r{background:var(--rbg);color:var(--r)}.bd-a{background:var(--abg);color:var(--a)}
+.bd-b{background:var(--bbg);color:var(--b)}.bd-p{background:var(--pbg);color:var(--p)}.bd-n{background:#F1EFE8;color:#5F5E5A}
+.day{width:34px;height:34px;border-radius:9px;background:#F1EFE8;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.mnav b{font-size:17px}
+.mnav i{font-size:22px;padding:6px 10px;cursor:pointer}
+.strike{text-decoration:line-through;color:var(--tx3)}
+#nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:5}
+#nav div{flex:1;text-align:center;font-size:11px;color:var(--tx2);cursor:pointer}
+#nav div i{display:block;font-size:22px}
+#nav div.on{color:var(--b);font-weight:600}
+#nav .plus i{background:#1f1e1b;color:#fff;border-radius:50%;width:46px;height:46px;line-height:46px;margin:-14px auto 0;font-size:26px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:#1f1e1b;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;display:none;z-index:20;max-width:90%}
+#toast.e{background:#A32D2D}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+#modal .sheet{background:#fff;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px;max-height:85vh;overflow:auto}
+.loading{text-align:center;color:var(--tx2);padding:60px 0}
+.center{text-align:center}
+a{color:var(--b)}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Cargando…</div></div>
+<nav id="nav" style="display:none"></nav>
+<div id="toast"></div>
+<div id="modal" onclick="if(event.target===this)closeModal()"><div class="sheet" id="sheet"></div></div>
+
+<script>
+// ============ Estado y utilidades ============
+const S = { u: null, init: null, mes: null, view: 'inicio', param: null };
+let F = {};          // formulario actual
+let busy = false;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { maximumFractionDigits: 2 });
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const auth = () => ({ id: S.u.id, pin: S.u.pin });
+const isAdmin = () => S.u && S.u.rol === 'admin';
+const pct = (a, b) => b > 0 ? Math.min(100, Math.round(a / b * 100)) : 0;
+const msg = e => String((e && e.message) || e).replace(/^(Exception|Error|ScriptError):\s*/i, '');
+
+function api(fn, ...args) {
+  return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+}
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem('consultorio_u') || 'null'); } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem('consultorio_u', JSON.stringify(v)); } catch (e) {} },
+  clear() { try { localStorage.removeItem('consultorio_u'); } catch (e) {} }
+};
+function toast(t, err) {
+  const el = $('#toast'); el.textContent = t; el.className = err ? 'e' : ''; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(() => el.style.display = 'none', 3000);
+}
+function modal(html) { $('#sheet').innerHTML = html; $('#modal').style.display = 'flex'; }
+function closeModal() { $('#modal').style.display = 'none'; }
+function loading() { $('#app').innerHTML = '<div class="loading">Cargando…</div>'; }
+function nombreMes(m) {
+  const [y, mo] = m.split('-').map(Number);
+  const t = new Date(y, mo - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+function mover(m, d) { let [y, mo] = m.split('-').map(Number); mo += d; if (mo < 1) { mo = 12; y--; } if (mo > 12) { mo = 1; y++; } return y + '-' + String(mo).padStart(2, '0'); }
+function mnav() {
+  return `<div class="mnav"><i class="ti ti-chevron-left" onclick="cambiaMes(-1)"></i><b>${esc(nombreMes(S.mes))}</b>
+  <i class="ti ti-chevron-right" onclick="cambiaMes(1)" style="${S.mes >= S.init.mes ? 'visibility:hidden' : ''}"></i></div>`;
+}
+function cambiaMes(d) { const m = mover(S.mes, d); if (m > S.init.mes) return; S.mes = m; go(S.view, S.param); }
+function bar(p, color) { return `<div class="bar"><div style="width:${p}%;background:${color}"></div></div>`; }
+function colorPct(p) { return p >= 100 ? '#E24B4A' : p >= 80 ? '#BA7517' : '#639922'; }
+function wa(cel, texto) {
+  let n = String(cel || '').replace(/[^\d+]/g, '');
+  n = n.charAt(0) === '+' ? n.slice(1) : '51' + n;
+  return 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto || '');
+}
+function chip(txt, on, fn) { return `<span class="chip ${on ? 'on' : ''}" onclick="${fn}">${esc(txt)}</span>`; }
+function seg(opts, cls) {
+  return `<div class="seg ${opts.length === 3 ? 'three' : 'two'}">` + opts.map(o => `<div class="${o.on ? 'on ' + (o.c || '') : ''}" onclick="${o.fn}">${esc(o.t)}</div>`).join('') + '</div>';
+}
+async function refreshInit() { S.init = await api('init', auth()); }
+
+// ============ Inicio de sesión ============
+async function start() {
+  const saved = store.get();
+  if (saved) {
+    S.u = saved;
+    try { await refreshInit(); S.u.rol = S.init.user.rol; S.mes = S.init.mes; showNav(); go('inicio'); return; }
+    catch (e) { store.clear(); }
+  }
+  showLogin();
+}
+async function showLogin() {
+  $('#nav').style.display = 'none';
+  loading();
+  let us = [];
+  try { us = await api('usuarios'); } catch (e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p>`; return; }
+  F = { uid: '', pin: '', err: '' };
+  $('#app').innerHTML = `<div style="padding-top:40px"><h1 class="center">Finanzas del consultorio</h1>
+  <p class="center muted small">Dr. Daniel Villamizar Hernández</p>
+  <div class="card"><p class="lb">¿Quién eres?</p>
+  ${us.map(u => `<span class="chip" data-u="${esc(u.id)}" onclick="F.uid='${esc(u.id)}';document.querySelectorAll('[data-u]').forEach(x=>x.classList.toggle('on',x.dataset.u===F.uid))">${esc(u.nombre)}</span>`).join('')}
+  <p class="lb" style="margin-top:8px">Tu PIN de 6 dígitos</p>
+  <input type="password" inputmode="numeric" maxlength="6" id="pin" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()">
+  <label style="display:flex;align-items:center;gap:8px;margin:-2px 0 12px;cursor:pointer"><input type="checkbox" id="recordar" checked style="width:20px;height:20px;margin:0"> Recordarme en este celular</label>
+  <p class="err" id="lerr"></p>
+  <button class="btn pri" onclick="doLogin()">Entrar</button></div></div>`;
+}
+async function doLogin() {
+  const pin = $('#pin').value.trim();
+  if (!F.uid) { $('#lerr').textContent = 'Elige tu nombre.'; return; }
+  if (!/^\d{4,8}$/.test(pin)) { $('#lerr').textContent = 'Escribe tu PIN.'; return; }
+  try {
+    S.u = await api('login', F.uid, pin);
+    S.recordar = $('#recordar').checked;
+    if (S.recordar) store.set(S.u); else store.clear();
+    await refreshInit(); S.mes = S.init.mes; showNav(); go('inicio');
+  } catch (e) { $('#lerr').textContent = msg(e); }
+}
+function salir() { store.clear(); S.u = null; showLogin(); }
+
+// ============ Navegación ============
+function showNav() {
+  $('#nav').style.display = 'flex';
+  $('#nav').innerHTML = [['inicio', 'ti-home', 'Inicio'], ['movs', 'ti-list', 'Registros'], ['reg', 'ti-plus', ''],
+    ['procs', 'ti-heart-rate-monitor', 'Procedim.'], ['mas', 'ti-dots', 'Más']]
+    .map(x => `<div data-v="${x[0]}" class="${x[0] === 'reg' ? 'plus' : ''}" onclick="${x[0] === 'reg' ? "nuevoReg('ingreso')" : "go('" + x[0] + "')"}"><i class="ti ${x[1]}"></i>${x[2]}</div>`).join('');
+}
+const VIEWS = {};
+function go(v, p) {
+  S.view = v; S.param = p; closeModal();
+  document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('on', d.dataset.v === v || (v === 'proc' && d.dataset.v === 'procs')));
+  window.scrollTo(0, 0);
+  VIEWS[v](p);
+}
+
+// ============ INICIO ============
+VIEWS.inicio = async () => {
+  loading();
+  let r;
+  try { r = await api('resumen', auth(), S.mes); } catch (e) { return fail(e); }
+  const c = r.consultorio, p = r.procedimientos, pc = pct(c.neto, c.meta);
+  const prox = r.pres.filter(x => x.estado === 'proximo' || x.estado === 'vencido');
+  $('#app').innerHTML = mnav() + `
+  <div class="card tap" onclick="go('pres')">
+    <p class="mid"><i class="ti ti-stethoscope"></i> Consultorio</p>
+    <p class="lb">Debe cubrir el presupuesto general</p>
+    <div class="row"><span>Ingresos</span><b class="g">${money(c.ingresos)}</b></div>
+    ${c.patologia ? `<div class="row"><span>Patología</span><span class="r">− ${money(c.patologia)}</span></div>` : ''}
+    ${c.transferido ? `<div class="row"><span>Pasado desde procedimientos</span><span class="b">+ ${money(c.transferido)}</span></div>` : ''}
+    <div class="row"><span>Neto vs. meta</span><b>${money(c.neto)} <span class="muted small">de ${money(c.meta)}</span></b></div>
+    ${bar(pc, pc >= 100 ? '#639922' : '#378ADD')}
+    <p class="small ${c.faltante > 0 ? 'a' : 'g'}" style="margin:0">${pc}% · ${c.faltante > 0 ? 'faltan ' + money(c.faltante) + (r.dias ? ' · quedan ' + r.dias + ' días' : '') : 'meta cubierta'}</p>
+    <div class="grid2" style="margin-top:10px">
+      <div class="tile"><p class="lb">Pagado del presupuesto</p><b class="g">${money(c.presPagado)}</b></div>
+      <div class="tile"><p class="lb">Por pagar</p><b class="a">${money(c.porPagar)}</b></div>
+    </div>
+  </div>
+  <div class="card tap" onclick="go('procs')">
+    <p class="mid"><i class="ti ti-heart-rate-monitor"></i> Procedimientos</p>
+    <p class="lb">Cada uno con su presupuesto propio</p>
+    <div class="row"><span>Cobrado</span><b>${money(p.ingresos)}</b></div>
+    <div class="row"><span>Gastos y patología</span><span class="r">− ${money(p.gastos + p.patologia)}</span></div>
+    ${p.transferido ? `<div class="row"><span>Pasado a consultorio</span><span class="b">− ${money(p.transferido)}</span></div>` : ''}
+    <div class="row"><b>Ganancia</b><b class="g">${money(p.ganancia)}</b></div>
+  </div>
+  <div class="card center" style="background:#F1EFE8">
+    <p class="lb">Total general del mes</p>
+    <p class="big">${money(r.total.ingresos)}</p>
+    <p class="small muted" style="margin:4px 0 0">Egresos ${money(r.total.egresos)} · Disponible <b class="${r.total.disponible >= 0 ? 'g' : 'r'}">${money(r.total.disponible)}</b></p>
+  </div>
+  <div class="grid2" style="margin-bottom:12px">
+    <button class="btn gr" style="margin:0" onclick="nuevoReg('ingreso')"><i class="ti ti-plus"></i> Ingreso</button>
+    <button class="btn rd" style="margin:0" onclick="nuevoReg('gasto')"><i class="ti ti-minus"></i> Gasto</button>
+  </div>
+  ${prox.length ? `<div class="card"><p class="mid"><i class="ti ti-bell"></i> Pagos que vencen</p>${prox.map(x => `
+    <div class="row tap" onclick="nuevoReg('gasto',{pres:'${x.id}'})"><div class="day">${x.dia}</div><div class="t"><p>${esc(x.concepto)}</p>
+    <p class="small ${x.estado === 'vencido' ? 'r' : 'a'}">${x.estado === 'vencido' ? 'Vencido' : 'Vence pronto'}</p></div><b>${money(x.monto)}</b></div>`).join('')}</div>` : ''}
+  ${r.porCobrar.length ? `<div class="card"><p class="mid"><i class="ti ti-hourglass"></i> Por cobrar · ${money(r.totalPorCobrar)}</p>${r.porCobrar.map(x => `
+    <div class="row"><div class="t tap" onclick="go('proc','${x.id}')"><p>${esc(x.nombre)} · ${esc(x.tipo)}</p><p class="small muted">Saldo ${money(x.saldo)}</p></div>
+    <a href="${wa(x.celular, 'Hola ' + x.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(x.saldo) + ' por ' + x.tipo + '.')}" target="_blank" style="color:#25D366;font-size:24px"><i class="ti ti-brand-whatsapp"></i></a></div>`).join('')}</div>` : ''}
+  ${r.patPend ? `<div class="card tap" onclick="go('pat')"><div class="row"><span><i class="ti ti-microscope"></i> Por pagar a Patología</span><b class="a">${money(r.patPend)}</b></div></div>` : ''}`;
+};
+function fail(e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p><button class="btn" onclick="go(S.view,S.param)">Reintentar</button>`; if (/PIN|ingresar/i.test(msg(e))) salir(); }
+
+// ============ REGISTRAR ============
+function nuevoReg(modo, pre) {
+  pre = pre || {};
+  F = { modo, cat: pre.proc ? 'Procedimientos' : '', item: null, proc: pre.proc || '', monto: '', forma: '', paciente: '', biopsia: false,
+    nota: '', q: '', destino: pre.destino || (pre.proc && modo === 'gasto' ? 'procedimiento' : 'consultorio'), pres: pre.pres || '',
+    concepto: '', bio: !!pre.bio, err: '' };
+  if (modo === 'ingreso' && pre.proc) { const p = procById(pre.proc); if (p) F.monto = p.saldo; }
+  if (modo === 'gasto' && pre.pres) { const l = S.init.pres.find(x => x.id === pre.pres); if (l) F.monto = Math.max(0, l.monto - l.pagado) || l.monto; }
+  go('reg');
+}
+const procById = id => S.init.procs.find(p => p.id === id);
+VIEWS.reg = () => vReg();
+
+function vReg() {
+  const ing = F.modo === 'ingreso';
+  let h = `<h1>${ing ? 'Registrar ingreso' : 'Registrar gasto'}</h1>` +
+    seg([{ t: 'Ingreso', on: ing, c: 'g', fn: "setModo('ingreso')" }, { t: 'Gasto', on: !ing, c: 'r', fn: "setModo('gasto')" }]);
+  h += ing ? regIngreso() : regGasto();
+  $('#app').innerHTML = h;
+}
+function setModo(m) { nuevoReg(m); }
+
+function regIngreso() {
+  const I = S.init, serv = I.cat.filter(c => c.tipo === 'servicio');
+  const cats = [...new Set(serv.map(c => c.categoria))];
+  let h = '';
+  const elegido = F.item || F.proc;
+  if (!elegido) {
+    h += `<input placeholder="Buscar servicio…" value="${esc(F.q)}" oninput="F.q=this.value;$('#lista').innerHTML=listaIng()">`;
+    const top = I.top.map(n => serv.find(c => c.servicio === n)).filter(Boolean);
+    if (top.length) h += `<p class="lb">Más usados</p>` + top.map(c => chip(c.servicio, false, `selItem('${c.id}')`)).join('');
+    h += `<p class="lb" style="margin-top:4px">Categoría</p>` + cats.map(c => chip(c, F.cat === c, `F.cat='${c}';F.q='';vReg()`)).join('') +
+      chip('Procedimientos', F.cat === 'Procedimientos', "F.cat='Procedimientos';F.q='';vReg()");
+    h += `<div id="lista" class="card" style="padding:4px 14px">${listaIng()}</div>`;
+    return h;
+  }
+  // Formulario con el servicio elegido
+  if (F.item) {
+    h += `<div class="card"><p class="lb">Concepto</p><div class="row"><b class="t">${esc(F.item.servicio)}</b><span class="chip" onclick="F.item=null;vReg()">Cambiar</span></div></div>`;
+  } else {
+    const p = procById(F.proc);
+    h += `<div class="card"><p class="lb">Abono a procedimiento</p><div class="row"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b>
+      <p class="small muted">Cobrado ${money(p.cobrado)} de ${money(p.precio)} · saldo <b class="a">${money(p.saldo)}</b></p></div>
+      <span class="chip" onclick="F.proc='';vReg()">Cambiar</span></div></div>`;
+  }
+  h += `<p class="lb">Monto${F.item ? ' (precio de lista, puedes cambiarlo)' : ''}</p>
+    <input class="monto" type="number" inputmode="decimal" value="${esc(F.monto)}" oninput="F.monto=this.value;prevIng()">`;
+  if (F.item && F.item.biopsia) {
+    h += `<p class="lb">¿Se tomó biopsia de cuello uterino?</p>` +
+      seg([{ t: 'No', on: !F.biopsia, fn: 'F.biopsia=false;vReg()' }, { t: 'Sí', on: F.biopsia, fn: 'F.biopsia=true;vReg()' }]);
+  }
+  h += `<p class="lb">Forma de pago</p>` + S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vReg()`)).join('');
+  if (F.item) h += `<p class="lb" style="margin-top:4px">Paciente (opcional)</p><input value="${esc(F.paciente)}" placeholder="Nombre o iniciales" oninput="F.paciente=this.value">`;
+  h += `<div id="prev">${prevIngHTML()}</div>
+    <p class="lb">Nota (opcional)</p><input value="${esc(F.nota)}" oninput="F.nota=this.value">
+    <p class="small muted"><i class="ti ti-clock"></i> Fecha, hora y usuario se guardan solos · ${esc(S.u.nombre)}</p>
+    ${F.err ? `<p class="err">${esc(F.err)}</p>` : ''}
+    <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarIngreso()">Guardar</button>`;
+  return h;
+}
+function listaIng() {
+  const I = S.init, serv = I.cat.filter(c => c.tipo === 'servicio');
+  let items = [];
+  if (F.q.trim()) items = serv.filter(c => norm(c.servicio + ' ' + c.categoria).includes(norm(F.q.trim())));
+  else if (F.cat === 'Procedimientos') {
+    const ab = I.procs.filter(p => p.saldo > 0);
+    return (ab.length ? `<p class="lb" style="margin-top:10px">Con saldo pendiente</p>` + ab.map(p => `<div class="row tap" onclick="selProc('${p.id}')">
+      <div class="t"><p>${esc(p.tipo)} · ${esc(p.nombre)}</p><p class="small muted">${esc(p.fecha)}</p></div><b class="a">${money(p.saldo)}</b></div>`).join('') : '<p class="small muted">No hay procedimientos con saldo.</p>') +
+      `<button class="btn" style="margin-top:10px" onclick="go('nuevoProc')"><i class="ti ti-plus"></i> Nuevo procedimiento</button>`;
+  } else if (F.cat) items = serv.filter(c => c.categoria === F.cat);
+  else return '<p class="small muted" style="padding:8px 0">Elige una categoría o busca el servicio.</p>';
+  if (!items.length) return '<p class="small muted" style="padding:8px 0">No se encontraron servicios.</p>';
+  return items.map(c => `<div class="row tap" onclick="selItem('${c.id}')"><span class="t">${esc(c.servicio)}</span><b>${c.precio ? money(c.precio) : 'variable'}</b></div>`).join('');
+}
+function selItem(id) { F.item = S.init.cat.find(c => c.id === id); F.proc = ''; F.monto = F.item.precio || ''; F.biopsia = false; vReg(); }
+function selProc(id) { F.proc = id; F.item = null; F.monto = procById(id).saldo; vReg(); }
+function prevIngHTML() {
+  if (!F.item) return '';
+  const m = Number(F.monto) || 0, pap = F.item.pap || 0, bio = (F.biopsia && F.item.biopsia) ? S.init.biopsiaCU : 0;
+  if (!pap && !bio) return '';
+  return `<div class="card" style="background:#F1EFE8"><p class="lb">Descuentos automáticos de Patología</p>
+    <div class="row"><span>Cobrado</span><span>${money(m)}</span></div>
+    ${pap ? `<div class="row r"><span>PAP</span><span>− ${money(pap)}</span></div>` : ''}
+    ${bio ? `<div class="row r"><span>Biopsia de cuello uterino</span><span>− ${money(bio)}</span></div>` : ''}
+    <div class="row"><b>Neto para el consultorio</b><b class="g">${money(m - pap - bio)}</b></div></div>`;
+}
+function prevIng() { const el = $('#prev'); if (el) el.innerHTML = prevIngHTML(); }
+async function guardarIngreso() {
+  if (busy) return;
+  F.err = '';
+  const m = Number(F.monto);
+  if (!(m > 0)) F.err = 'Ingresa un monto mayor a 0.';
+  else if (!F.forma) F.err = 'Elige la forma de pago.';
+  else if (F.proc && m > procById(F.proc).saldo) F.err = 'El monto supera el saldo pendiente.';
+  if (F.err) return vReg();
+  busy = true; vReg();
+  try {
+    const r = await api('registrarIngreso', auth(), { cat_id: F.item ? F.item.id : '', proc_id: F.proc, monto: m, forma: F.forma, paciente: F.paciente, biopsia: F.biopsia, nota: F.nota });
+    busy = false; toast('Guardado · neto ' + money(r.neto));
+    await refreshInit(); go('inicio');
+  } catch (e) { busy = false; F.err = msg(e); vReg(); }
+}
+
+function regGasto() {
+  const I = S.init;
+  let h = `<p class="lb">¿A qué bolsa va el gasto?</p>` +
+    seg([{ t: 'Consultorio', on: F.destino === 'consultorio', fn: "F.destino='consultorio';F.monto='';vReg()" },
+      { t: 'Procedimiento', on: F.destino === 'procedimiento', fn: "F.destino='procedimiento';F.monto='';vReg()" }]);
+  if (F.destino === 'consultorio') {
+    h += `<p class="lb">Pago del presupuesto general</p><div class="card" style="padding:4px 12px">` +
+      I.pres.map(l => `<div class="row tap ${F.pres === l.id ? 'sel' : ''}" onclick="selPres('${l.id}')"><div class="day">${l.dia}</div>
+        <div class="t"><p>${esc(l.concepto)}</p><p class="small ${l.estado === 'pagado' ? 'g' : 'muted'}">${l.estado === 'pagado' ? 'Pagado este mes' : (l.cuota ? 'Cuota ' + l.cuota : (l.estimado ? 'Monto estimado' : ''))}</p></div>
+        <b>${money(l.monto)}</b></div>`).join('') +
+      `<div class="row tap ${F.pres === 'otro' ? 'sel' : ''}" onclick="selPres('otro')"><div class="day"><i class="ti ti-dots"></i></div><div class="t">Otro gasto del consultorio</div></div></div>`;
+    if (!F.pres) return h;
+  } else {
+    const lista = I.procs.filter(p => p.saldo > 0 || p.mesCreado >= mover(I.mes, -3));
+    h += `<p class="lb">Procedimiento</p><select onchange="F.proc=this.value;vReg()"><option value="">Elige…</option>` +
+      lista.map(p => `<option value="${p.id}" ${F.proc === p.id ? 'selected' : ''}>${esc(p.tipo)} · ${esc(p.nombre)} · ${esc(p.fecha)}</option>`).join('') + '</select>';
+    if (!F.proc) return h + `<button class="btn" onclick="go('nuevoProc')"><i class="ti ti-plus"></i> Nuevo procedimiento</button>`;
+    const p = procById(F.proc);
+    if (p && p.presupuesto) h += `<p class="small muted">Gastos ${money(p.gastos)} de ${money(p.presupuesto)} presupuestados</p>${bar(pct(p.gastos, p.presupuesto), colorPct(pct(p.gastos, p.presupuesto)))}`;
+    h += `<p class="lb">¿Es una biopsia de pieza (Patología)?</p>` +
+      seg([{ t: 'No', on: !F.bio, fn: 'F.bio=false;vReg()' }, { t: 'Sí', on: F.bio, fn: 'F.bio=true;vReg()' }]);
+  }
+  const ph = F.destino === 'procedimiento' ? (F.bio ? 'Descripción de la pieza (opcional)' : 'Concepto: anestesiólogo, insumos…') : (F.pres === 'otro' ? 'Concepto del gasto' : 'Detalle (opcional)');
+  h += `<p class="lb">${F.bio ? 'Pieza' : 'Concepto'}</p><input value="${esc(F.concepto)}" placeholder="${ph}" oninput="F.concepto=this.value">
+    <p class="lb">Monto${F.bio ? ' de la biopsia (según la pieza)' : ''}</p>
+    <input class="monto" type="number" inputmode="decimal" value="${esc(F.monto)}" oninput="F.monto=this.value">`;
+  if (!F.bio) h += `<p class="lb">Forma de pago</p>` + I.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vReg()`)).join('');
+  else h += `<p class="small muted">Se resta de este procedimiento y queda en el renglón de Patología como “por pagar” hasta que llegue la factura.</p>`;
+  h += `<p class="lb" style="margin-top:4px">Nota (opcional)</p><input value="${esc(F.nota)}" oninput="F.nota=this.value">
+    ${F.err ? `<p class="err">${esc(F.err)}</p>` : ''}
+    <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarGasto()">Guardar</button>`;
+  return h;
+}
+function selPres(id) {
+  F.pres = id;
+  const l = S.init.pres.find(x => x.id === id);
+  F.monto = l ? (Math.max(0, l.monto - l.pagado) || l.monto) : '';
+  vReg();
+}
+async function guardarGasto() {
+  if (busy) return;
+  F.err = '';
+  const m = Number(F.monto);
+  if (!(m > 0)) F.err = 'Ingresa un monto mayor a 0.';
+  else if (!F.bio && !F.forma) F.err = 'Elige la forma de pago.';
+  else if (F.destino === 'consultorio' && F.pres === 'otro' && !F.concepto.trim()) F.err = 'Escribe el concepto del gasto.';
+  else if (F.destino === 'procedimiento' && !F.bio && !F.concepto.trim()) F.err = 'Escribe el concepto del gasto.';
+  if (F.err) return vReg();
+  busy = true; vReg();
+  try {
+    await api('registrarGasto', auth(), { destino: F.destino, pres_id: F.pres === 'otro' ? '' : F.pres, proc_id: F.proc, concepto: F.concepto, monto: m, forma: F.forma, biopsia: F.bio, nota: F.nota });
+    busy = false; toast('Gasto guardado');
+    await refreshInit();
+    if (F.destino === 'procedimiento') go('proc', F.proc); else go('inicio');
+  } catch (e) { busy = false; F.err = msg(e); vReg(); }
+}
+
+// ============ NUEVO PROCEDIMIENTO ============
+VIEWS.nuevoProc = () => {
+  F = { modo: 'proc', cat_id: '', tipo_doc: 'DNI', num_doc: '', nombres: '', apellidos: '', celular: '', precio: '', presupuesto: '',
+    forma_cobro: 'unico', pago: '', forma: '', nota: '', err: '', conocida: false };
+  vProc();
+};
+function vProc() {
+  const tipos = S.init.cat.filter(c => c.tipo === 'procedimiento');
+  const reglas = { DNI: '8 dígitos', CE: '9 caracteres o más', PAS: 'letras y números' };
+  $('#app').innerHTML = `<h1>Nuevo procedimiento</h1>
+  <p class="lb">Tipo</p>${tipos.map(t => chip(t.servicio, F.cat_id === t.id, `F.cat_id='${t.id}';vProc()`)).join('')}
+  <h2>Paciente</h2>
+  <p class="lb">Tipo de documento *</p>
+  ${seg([{ t: 'DNI', on: F.tipo_doc === 'DNI', fn: "F.tipo_doc='DNI';vProc()" }, { t: 'Carnet ext.', on: F.tipo_doc === 'CE', fn: "F.tipo_doc='CE';vProc()" }, { t: 'Pasaporte', on: F.tipo_doc === 'PAS', fn: "F.tipo_doc='PAS';vProc()" }])}
+  <p class="lb">Número * (${reglas[F.tipo_doc]})</p>
+  <input value="${esc(F.num_doc)}" ${F.tipo_doc === 'DNI' ? 'inputmode="numeric" maxlength="8"' : 'maxlength="12" style="text-transform:uppercase"'} oninput="F.num_doc=this.value.toUpperCase()" onblur="buscarPac()">
+  ${F.conocida ? '<p class="small g" style="margin-top:-6px"><i class="ti ti-user-check"></i> Paciente conocida · datos completados</p>' : ''}
+  <p class="lb">Nombres *</p><input value="${esc(F.nombres)}" oninput="F.nombres=this.value">
+  <p class="lb">Apellidos *</p><input value="${esc(F.apellidos)}" oninput="F.apellidos=this.value">
+  <p class="lb">Celular * (9 dígitos, o con + si es extranjero)</p><input type="tel" value="${esc(F.celular)}" oninput="F.celular=this.value">
+  <h2>Montos</h2>
+  <div class="grid2"><div><p class="lb">Precio total *</p><input type="number" inputmode="decimal" value="${esc(F.precio)}" oninput="F.precio=this.value"></div>
+  <div><p class="lb">Presupuesto de gastos</p><input type="number" inputmode="decimal" value="${esc(F.presupuesto)}" oninput="F.presupuesto=this.value"></div></div>
+  <p class="lb">Forma de cobro</p>
+  ${seg([{ t: 'Pago único', on: F.forma_cobro === 'unico', fn: "F.forma_cobro='unico';vProc()" }, { t: 'Con adelantos', on: F.forma_cobro === 'adelantos', fn: "F.forma_cobro='adelantos';vProc()" }])}
+  <p class="lb">${F.forma_cobro === 'unico' ? 'Pago recibido hoy' : 'Adelanto recibido hoy'} (opcional)</p>
+  <input type="number" inputmode="decimal" value="${esc(F.pago)}" oninput="F.pago=this.value">
+  <p class="lb">Forma de pago</p>${S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vProc()`)).join('')}
+  <p class="lb" style="margin-top:4px">Nota (opcional)</p><input value="${esc(F.nota)}" oninput="F.nota=this.value">
+  ${F.err ? `<p class="err">${esc(F.err)}</p>` : ''}
+  <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarProc()">Guardar procedimiento</button>`;
+}
+async function buscarPac() {
+  const n = F.num_doc.trim();
+  if (n.length < 6) return;
+  try {
+    const p = await api('buscarPaciente', auth(), n);
+    if (p) { Object.assign(F, { tipo_doc: p.tipo_doc, nombres: p.nombres, apellidos: p.apellidos, celular: p.celular, conocida: true }); vProc(); }
+    else if (F.conocida) { F.conocida = false; vProc(); }
+  } catch (e) {}
+}
+function valPac() {
+  const n = F.num_doc.trim().toUpperCase(), cel = F.celular.replace(/[\s-]/g, '');
+  if (!F.cat_id) return 'Elige el tipo de procedimiento.';
+  if (F.tipo_doc === 'DNI' && !/^\d{8}$/.test(n)) return 'El DNI debe tener 8 dígitos.';
+  if (F.tipo_doc === 'CE' && !/^[A-Z0-9]{9,12}$/.test(n)) return 'El carnet de extranjería debe tener al menos 9 caracteres.';
+  if (F.tipo_doc === 'PAS' && !/^[A-Z0-9]{6,12}$/.test(n)) return 'El pasaporte debe tener entre 6 y 12 letras o números.';
+  if (!F.nombres.trim() || !F.apellidos.trim()) return 'Escribe nombres y apellidos.';
+  if (cel.charAt(0) === '+' ? !/^\+\d{8,15}$/.test(cel) : !/^9\d{8}$/.test(cel)) return 'El celular debe tener 9 dígitos y empezar con 9 (o + y código de país).';
+  if (!(Number(F.precio) > 0)) return 'Ingresa el precio total.';
+  if (Number(F.pago) > Number(F.precio)) return 'El pago no puede ser mayor al precio total.';
+  if (Number(F.pago) > 0 && !F.forma) return 'Elige la forma de pago.';
+  return '';
+}
+async function guardarProc() {
+  if (busy) return;
+  F.err = valPac();
+  if (F.err) return vProc();
+  busy = true; vProc();
+  try {
+    const r = await api('crearProcedimiento', auth(), F);
+    busy = false; toast('Procedimiento guardado');
+    await refreshInit(); go('proc', r.id);
+  } catch (e) { busy = false; F.err = msg(e); vProc(); }
+}
+
+// ============ PROCEDIMIENTOS ============
+VIEWS.procs = async (filtro) => {
+  loading();
+  try { await refreshInit(); } catch (e) { return fail(e); }
+  filtro = filtro || 'activos';
+  const all = S.init.procs;
+  const lista = filtro === 'activos' ? all.filter(p => p.saldo > 0 || p.mesCreado >= mover(S.init.mes, -1)) : all;
+  $('#app').innerHTML = `<h1>Procedimientos</h1>
+  ${seg([{ t: 'Recientes y con saldo', on: filtro === 'activos', fn: "go('procs','activos')" }, { t: 'Todos', on: filtro === 'todos', fn: "go('procs','todos')" }])}
+  <button class="btn pri" onclick="go('nuevoProc')"><i class="ti ti-plus"></i> Nuevo procedimiento</button>
+  ${lista.length ? lista.map(p => {
+    const pg = pct(p.gastos, p.presupuesto);
+    return `<div class="card tap" onclick="go('proc','${p.id}')">
+      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${esc(p.fecha)} · ${esc(p.forma_cobro)}</p></div>
+      ${p.saldo > 0 ? `<span class="badge bd-a">Saldo ${money(p.saldo)}</span>` : '<span class="badge bd-g">Pagado</span>'}</div>
+      <p class="small muted" style="margin:6px 0 0">Gastos ${money(p.gastos)} de ${money(p.presupuesto)}</p>${bar(pg, colorPct(pg))}
+      <p class="small" style="margin:0">Cobrado ${money(p.cobrado)} de ${money(p.precio)} · Ganancia <b class="g">${money(p.ganancia)}</b></p></div>`;
+  }).join('') : '<p class="muted center">Aún no hay procedimientos.</p>'}`;
+};
+VIEWS.proc = async (id) => {
+  loading();
+  let p;
+  try { p = await api('detalleProc', auth(), id); } catch (e) { return fail(e); }
+  const pg = pct(p.gastos, p.presupuesto), pcob = pct(p.cobrado, p.precio);
+  $('#app').innerHTML = `<p class="small tap b" onclick="go('procs')"><i class="ti ti-arrow-left"></i> Procedimientos</p>
+  <h1>${esc(p.tipo)} · ${esc(p.nombre)}</h1>
+  <p class="small muted" style="margin-top:-8px">${esc(p.fecha)} · ${esc(p.tipo_doc)} ${esc(p.num_doc)} · ${esc(p.celular)}</p>
+  <div class="grid2" style="margin-bottom:12px">
+    <div class="tile"><p class="lb">Cobrado</p><b>${money(p.cobrado)}</b> <span class="small muted">/ ${money(p.precio)}</span></div>
+    <div class="tile g"><p class="lb">Ganancia actual</p><b class="g">${money(p.ganancia)}</b></div>
+  </div>
+  <div class="card">
+    <p class="lb">Cobro · ${esc(p.forma_cobro)}</p>${bar(pcob, '#378ADD')}
+    <p class="small ${p.saldo > 0 ? 'a' : 'g'}" style="margin:0 0 10px">${p.saldo > 0 ? 'Saldo por cobrar ' + money(p.saldo) : 'Pagado por completo'}</p>
+    <p class="lb">Gastos ${money(p.gastos)} de ${money(p.presupuesto)} presupuestados${p.patologia ? ' (incluye Patología ' + money(p.patologia) + ')' : ''}</p>${bar(pg, colorPct(pg))}
+  </div>
+  ${p.saldo > 0 ? `<button class="btn gr" onclick="nuevoReg('ingreso',{proc:'${p.id}'})"><i class="ti ti-plus"></i> Registrar abono</button>` : ''}
+  <div class="grid2"><button class="btn rd" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento'})"><i class="ti ti-minus"></i> Gasto</button>
+  <button class="btn" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento',bio:true})"><i class="ti ti-microscope"></i> Biopsia</button></div>
+  ${p.saldo > 0 ? `<a class="btn" href="${wa(p.celular, 'Hola ' + p.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(p.saldo) + ' por ' + p.tipo + '.')}" target="_blank" style="text-decoration:none;color:#1f1e1b"><i class="ti ti-brand-whatsapp" style="color:#25D366"></i> Recordar saldo por WhatsApp</a>` : ''}
+  <h2>Movimientos</h2><div class="card" style="padding:4px 14px">${p.movs.length ? p.movs.map(movRow).join('') : '<p class="small muted">Sin movimientos.</p>'}</div>
+  ${p.nota ? `<p class="small muted">Nota: ${esc(p.nota)}</p>` : ''}
+  ${isAdmin() ? `<button class="btn" style="color:#A32D2D" onclick="confAnularProc('${p.id}')">Anular procedimiento</button>` : ''}`;
+};
+function confAnularProc(id) {
+  modal(`<h2>¿Anular este procedimiento?</h2><p class="small muted">Se anulan también sus cobros y gastos. Quedan en la hoja marcados como anulados.</p>
+  <button class="btn rd" onclick="doAnularProc('${id}')">Sí, anular</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doAnularProc(id) { try { await api('anularProc', auth(), id); closeModal(); toast('Procedimiento anulado'); await refreshInit(); go('procs'); } catch (e) { toast(msg(e), true); } }
+
+// ============ REGISTROS (movimientos) ============
+const TIPO = { ingreso: ['Ingreso', 'bd-g', 'ti-arrow-down-left'], gasto: ['Gasto', 'bd-r', 'ti-arrow-up-right'], patologia: ['Patología', 'bd-p', 'ti-microscope'], transferencia: ['Paso a consultorio', 'bd-b', 'ti-arrows-exchange'] };
+function movRow(m) {
+  const t = TIPO[m.tipo] || [m.tipo, 'bd-n', 'ti-point'];
+  const signo = m.tipo === 'ingreso' || m.tipo === 'transferencia' ? '+' : '−';
+  return `<div class="row tap" onclick='verMov(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
+    <i class="ti ${t[2]}" style="font-size:20px;color:var(--tx2)"></i>
+    <div class="t"><p class="${m.anulado ? 'strike' : ''}">${esc(m.concepto)}</p>
+    <p class="small muted">${esc(m.fecha)} · ${esc(m.usuario)}${m.paciente ? ' · ' + esc(m.paciente) : ''}${m.forma ? ' · ' + esc(m.forma) : ''}</p></div>
+    <b class="${m.anulado ? 'strike' : (signo === '+' ? 'g' : 'r')}">${signo} ${money(m.monto)}</b></div>`;
+}
+VIEWS.movs = async (filtro) => {
+  loading();
+  let ms;
+  try { ms = await api('movimientos', auth(), S.mes); } catch (e) { return fail(e); }
+  filtro = filtro || 'todos';
+  const l = ms.filter(m => filtro === 'todos' || (filtro === 'ing' ? m.tipo === 'ingreso' : m.tipo !== 'ingreso'));
+  $('#app').innerHTML = mnav() + `<h1>Registros</h1>
+  ${seg([{ t: 'Todos', on: filtro === 'todos', fn: "go('movs','todos')" }, { t: 'Ingresos', on: filtro === 'ing', fn: "go('movs','ing')" }, { t: 'Egresos', on: filtro === 'egr', fn: "go('movs','egr')" }])}
+  <div class="card" style="padding:4px 14px">${l.length ? l.map(movRow).join('') : '<p class="small muted">Sin registros este mes.</p>'}</div>
+  <p class="small muted center">Toca un registro para ver el detalle${isAdmin() ? ' o anularlo' : ' o pedir una corrección'}.</p>`;
+};
+function verMov(m) {
+  const t = TIPO[m.tipo] || [m.tipo, 'bd-n'];
+  modal(`<span class="badge ${t[1]}">${t[0]}</span> <span class="badge bd-n">${esc(m.bolsa || '')}</span>
+  <h2>${esc(m.concepto)}</h2><p class="big">${money(m.monto)}</p>
+  <p class="small muted">${esc(m.fecha)} · registró ${esc(m.usuario)}${m.forma ? ' · ' + esc(m.forma) : ''}${m.paciente ? '<br>Paciente: ' + esc(m.paciente) : ''}${m.estado ? '<br>Estado: ' + esc(m.estado) : ''}${m.nota ? '<br>Nota: ' + esc(m.nota) : ''}</p>
+  ${m.anulado ? '<p class="err">Registro anulado</p>' : (m.origen ? '<p class="small muted">Este descuento se creó solo. Para quitarlo, anula el ingreso que lo originó.</p>' : (isAdmin() ?
+    `<button class="btn rd" onclick="doAnular('${m.id}')">Anular registro</button><p class="small muted">Si fue un error, anúlalo y vuelve a registrarlo bien.</p>` :
+    `<p class="lb">¿Qué hay que corregir?</p><input id="motivo" placeholder="Ejemplo: el monto era S/ 200"><p class="err" id="merr"></p>
+     <button class="btn pri" onclick="doCorreccion('${m.id}')">Pedir corrección</button>`))}
+  <button class="btn" onclick="closeModal()">Cerrar</button>`);
+}
+async function doAnular(id) { try { await api('anular', auth(), id); closeModal(); toast('Registro anulado'); await refreshInit(); go(S.view, S.param); } catch (e) { toast(msg(e), true); } }
+async function doCorreccion(id) {
+  const mo = $('#motivo').value.trim();
+  if (!mo) { $('#merr').textContent = 'Escribe qué hay que corregir.'; return; }
+  try { await api('pedirCorreccion', auth(), id, mo); closeModal(); toast('Corrección enviada al doctor'); } catch (e) { $('#merr').textContent = msg(e); }
+}
+
+// ============ PRESUPUESTO ============
+VIEWS.pres = async () => {
+  loading();
+  let r;
+  try { r = await api('resumen', auth(), S.mes); } catch (e) { return fail(e); }
+  const c = r.consultorio, est = { pagado: ['Pagado', 'bd-g'], parcial: ['Parcial', 'bd-a'], vencido: ['Vencido', 'bd-r'], proximo: ['Vence pronto', 'bd-a'], pendiente: ['Pendiente', 'bd-n'] };
+  $('#app').innerHTML = mnav() + `<h1>Presupuesto general</h1>
+  <div class="card"><p class="lb">Pagado ${money(c.presPagado)} de ${money(c.meta)} · por pagar ${money(c.porPagar)}</p>${bar(pct(c.presPagado, c.meta), '#639922')}
+  <p class="small muted" style="margin:0">Ingresos netos del consultorio: <b>${money(c.neto)}</b> (${pct(c.neto, c.meta)}% de la meta)</p></div>
+  <div class="card" style="padding:4px 14px">${r.pres.map(x => `
+    <div class="row tap" onclick="${x.estado === 'pagado' ? '' : `nuevoReg('gasto',{pres:'${x.id}'})`}"><div class="day">${String(x.dia).padStart(2, '0')}</div>
+    <div class="t"><p>${esc(x.concepto)}</p><p class="small muted">${x.cuota ? 'Cuota ' + x.cuota + ' · ' : ''}${x.estimado ? 'estimado · ' : ''}${x.pagado ? 'pagado ' + money(x.pagado) : esc(x.categoria)}</p></div>
+    <div style="text-align:right"><b>${money(x.monto)}</b><br><span class="badge ${est[x.estado][1]}">${est[x.estado][0]}</span></div></div>`).join('')}</div>
+  <p class="small muted center">Toca un pago pendiente para registrarlo.${isAdmin() ? '<br>Para cambiar montos o agregar pagos, edita la pestaña “Presupuesto” de tu hoja de Google.' : ''}</p>`;
+};
+
+// ============ PATOLOGÍA ============
+VIEWS.pat = async () => {
+  loading();
+  let d;
+  try { d = await api('patologia', auth(), S.mes); } catch (e) { return fail(e); }
+  $('#app').innerHTML = mnav() + `<h1><i class="ti ti-microscope"></i> Patología</h1>
+  <div class="grid2" style="margin-bottom:12px"><div class="tile"><p class="lb">De consultorio</p><b>${money(d.consultorio)}</b></div>
+  <div class="tile"><p class="lb">De procedimientos</p><b>${money(d.procedimientos)}</b></div></div>
+  <div class="card" style="padding:4px 14px">${d.lista.length ? d.lista.map(m => `<div class="row"><div class="t"><p>${esc(m.concepto)}</p>
+    <p class="small muted">${esc(m.fecha)}${m.paciente ? ' · ' + esc(m.paciente) : ''} · <span class="badge ${m.bolsa === 'consultorio' ? 'bd-b' : 'bd-p'}">${m.bolsa === 'consultorio' ? 'Consultorio' : 'Procedimiento'}</span></p></div>
+    <div style="text-align:right"><b>${money(m.monto)}</b><br><span class="badge ${m.estado === 'pagado' ? 'bd-g' : 'bd-a'}">${m.estado === 'pagado' ? 'Pagado' : 'Por pagar'}</span></div></div>`).join('') : '<p class="small muted">Sin registros de Patología este mes.</p>'}</div>
+  <div class="card" style="background:var(--abg)"><div class="row"><b class="a">Por pagar a Patología (todas las facturas)</b><b class="a">${money(d.totalPend)}</b></div></div>
+  ${isAdmin() && d.pendientes.length ? `<button class="btn pri" onclick='pagarPat(${JSON.stringify(d.pendientes).replace(/'/g, "&#39;")})'>Registrar pago de factura</button>` : ''}`;
+};
+function pagarPat(pend) {
+  modal(`<h2>Pago de factura de Patología</h2><p class="small muted">Marca las líneas que incluye la factura.</p>
+  <div style="max-height:40vh;overflow:auto">${pend.map(m => `<label class="row" style="cursor:pointer"><input type="checkbox" class="pchk" value="${m.id}" data-m="${m.monto}" checked style="width:auto;margin:0" onchange="totPat()">
+  <span class="t small">${esc(m.concepto)}<br><span class="muted">${esc(m.fecha)} ${esc(m.paciente || '')}</span></span><b>${money(m.monto)}</b></label>`).join('')}</div>
+  <p class="mid" id="ptot" style="margin:10px 0"></p>
+  <p class="lb">N.º de factura (opcional)</p><input id="pfac">
+  <button class="btn pri" onclick="doPagarPat()">Marcar como pagado</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+  totPat();
+}
+function totPat() { let t = 0; document.querySelectorAll('.pchk:checked').forEach(c => t += Number(c.dataset.m)); $('#ptot').textContent = 'Total: ' + money(t); }
+async function doPagarPat() {
+  const ids = [...document.querySelectorAll('.pchk:checked')].map(c => c.value);
+  try { await api('pagarPatologia', auth(), ids, $('#pfac').value); closeModal(); toast('Factura registrada'); go('pat'); } catch (e) { toast(msg(e), true); }
+}
+
+// ============ MÁS ============
+VIEWS.mas = async () => {
+  let nc = 0;
+  if (isAdmin()) { try { nc = (await api('correcciones', auth())).length; } catch (e) {} }
+  const item = (ic, t, fn, extra) => `<div class="row tap" onclick="${fn}"><i class="ti ${ic}" style="font-size:22px"></i><span class="t">${t}</span>${extra || ''}<i class="ti ti-chevron-right muted"></i></div>`;
+  $('#app').innerHTML = `<h1>Más</h1><p class="small muted" style="margin-top:-8px">${esc(S.u.nombre)} · ${isAdmin() ? 'Doctor (administrador)' : 'Asistente'}</p>
+  <div class="card" style="padding:4px 14px">
+  ${item('ti-calendar-dollar', 'Presupuesto general', "go('pres')")}
+  ${item('ti-microscope', 'Patología', "go('pat')")}
+  ${item('ti-file-text', 'Informe PDF y Excel', "go('inf')")}
+  ${isAdmin() ? item('ti-message-exclamation', 'Correcciones pedidas', "go('corr')", nc ? `<span class="badge bd-r">${nc}</span>` : '') : ''}
+  ${isAdmin() ? item('ti-arrows-exchange', 'Pasar dinero de procedimientos al consultorio', 'transfer()') : ''}
+  ${item('ti-key', 'Cambiar mi PIN', 'cambiarPin()')}
+  </div>
+  <button class="btn" onclick="salir()"><i class="ti ti-logout"></i> Cerrar sesión</button>`;
+};
+async function transfer() {
+  let r; try { r = await api('resumen', auth(), S.init.mes); } catch (e) { return toast(msg(e), true); }
+  modal(`<h2>Pasar dinero al consultorio</h2>
+  <p class="small muted">Faltante del consultorio este mes: <b class="a">${money(r.consultorio.faltante)}</b><br>Ganancia de procedimientos: <b class="g">${money(r.procedimientos.ganancia)}</b></p>
+  <p class="lb">Monto</p><input id="tmon" type="number" inputmode="decimal" class="monto" value="${r.consultorio.faltante || ''}">
+  <p class="lb">Nota (opcional)</p><input id="tnot"><p class="err" id="terr"></p>
+  <button class="btn pri" onclick="doTransfer()">Pasar dinero</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doTransfer() {
+  const m = Number($('#tmon').value);
+  if (!(m > 0)) { $('#terr').textContent = 'Ingresa un monto mayor a 0.'; return; }
+  try { await api('transferir', auth(), m, $('#tnot').value); closeModal(); toast('Dinero pasado al consultorio'); go('inicio'); } catch (e) { $('#terr').textContent = msg(e); }
+}
+
+function cambiarPin() {
+  modal(`<h2>Cambiar mi PIN</h2>
+  <p class="lb">PIN actual</p><input id="p0" type="password" inputmode="numeric" maxlength="6">
+  <p class="lb">PIN nuevo (6 números)</p><input id="p1" type="password" inputmode="numeric" maxlength="6">
+  <p class="lb">Repite el PIN nuevo</p><input id="p2" type="password" inputmode="numeric" maxlength="6">
+  <p class="err" id="perr"></p>
+  <button class="btn pri" onclick="doCambiarPin()">Guardar PIN</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doCambiarPin() {
+  const p0 = $('#p0').value.trim(), p1 = $('#p1').value.trim(), p2 = $('#p2').value.trim();
+  if (!p0) return $('#perr').textContent = 'Escribe tu PIN actual.';
+  if (!/^\d{6}$/.test(p1)) return $('#perr').textContent = 'El PIN nuevo debe tener 6 números.';
+  if (p1 !== p2) return $('#perr').textContent = 'Los dos PIN nuevos no coinciden.';
+  try {
+    const r = await api('cambiarPin', auth(), p0, p1);
+    S.u.pin = r.pin;
+    if (S.recordar !== false) store.set(S.u);
+    closeModal(); toast('PIN cambiado');
+  } catch (e) { $('#perr').textContent = msg(e); }
+}
+
+// ============ CORRECCIONES ============
+VIEWS.corr = async () => {
+  loading();
+  let l;
+  try { l = await api('correcciones', auth()); } catch (e) { return fail(e); }
+  $('#app').innerHTML = `<p class="small tap b" onclick="go('mas')"><i class="ti ti-arrow-left"></i> Más</p><h1>Correcciones pedidas</h1>
+  ${l.length ? l.map(c => `<div class="card"><p class="small muted" style="margin:0">${esc(c.fecha)} · ${esc(c.usuario)}</p>
+    <p style="margin:6px 0"><b>${esc(c.detalle)}</b></p><p style="margin:0 0 10px">“${esc(c.motivo)}”</p>
+    <button class="btn sm rd" onclick="resolver('${c.id}',true)">Anular registro</button><button class="btn sm" onclick="resolver('${c.id}',false)">Marcar resuelta</button></div>`).join('')
+    : '<p class="muted center">No hay correcciones pendientes.</p>'}
+  <p class="small muted center">Después de anular, vuelve a registrar el dato correcto.</p>`;
+};
+async function resolver(id, an) { try { await api('resolverCorreccion', auth(), id, an); toast(an ? 'Registro anulado' : 'Resuelta'); await refreshInit(); go('corr'); } catch (e) { toast(msg(e), true); } }
+
+// ============ INFORME ============
+VIEWS.inf = () => {
+  $('#app').innerHTML = mnav() + `<h1>Informe del mes</h1>
+  <div class="card"><p class="small muted" style="margin-top:0">Incluye resumen, consultorio vs. presupuesto, procedimientos, Patología y el detalle de cada registro.</p>
+  <button class="btn pri" id="bpdf" onclick="descargar('informePDF','bpdf')"><i class="ti ti-file-type-pdf"></i> Descargar PDF</button>
+  <button class="btn" id="bxls" onclick="descargar('informeExcel','bxls')"><i class="ti ti-file-spreadsheet"></i> Descargar Excel</button></div>`;
+};
+async function descargar(fn, bid) {
+  const b = $('#' + bid), txt = b.innerHTML;
+  b.disabled = true; b.textContent = 'Generando…';
+  try {
+    const r = await api(fn, auth(), S.mes);
+    const bin = atob(r.b64), arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], { type: r.mime }));
+    const a = document.createElement('a'); a.href = url; a.download = r.name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 5000);
+    toast('Informe listo');
+  } catch (e) { toast(msg(e), true); }
+  b.disabled = false; b.innerHTML = txt;
+}
+
+start();
+</script>
+</body>
+</html>
