@@ -238,7 +238,8 @@ function procs_(movs) {
       celular: String(p.celular), precio: precio, presupuesto: num_(p.presupuesto_gastos),
       forma_cobro: p.forma_cobro, nota: p.nota, cobrado: cobrado, gastos: num_(gastos + patologia),
       patologia: patologia, porFacturar: porFacturar, saldo: Math.max(0, num_(precio - cobrado)), ganancia: num_(cobrado - gastos - patologia),
-      gananciaEst: num_(precio - gastos - patologia - porFacturar), pendientes: pend.length, fecha_proc: fechaTxt_(p.fecha_proc), fecha_proc_iso: mm_(p.fecha_proc).slice(0, 10) };
+      gananciaEst: num_(precio - gastos - patologia - porFacturar), pendientes: pend.length, faltanDatos: !String(p.num_doc || '').trim(),
+      nombres: p.nombres, apellidos: p.apellidos, fecha_proc: fechaTxt_(p.fecha_proc), fecha_proc_iso: mm_(p.fecha_proc).slice(0, 10) };
   }).reverse();
 }
 
@@ -602,6 +603,16 @@ function mcFecha_(f) {
   return { date: new Date(m[1] + 'T' + m[2] + ':' + m[3] + ':00-05:00'), mes: m[1].slice(0, 7), txt: m[1].slice(8, 10) + '/' + m[1].slice(5, 7) + ' ' + m[2] + ':' + m[3] };
 }
 // tx: [{id, fecha, paciente, estado, forma, total, pagos:{Efectivo:..}, lineas:[{codigo, servicio, valor}]}]
+function tokens_(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/).filter(function (w) { return w.length > 2; });
+}
+function mismaPersona_(a, b) {
+  const ta = tokens_(a), tb = tokens_(b);
+  if (!ta.length || !tb.length) return false;
+  const comunes = ta.filter(function (w) { return tb.indexOf(w) >= 0; }).length;
+  return comunes >= Math.min(2, ta.length, tb.length);
+}
 function analizar_(tx) {
   const movs = rows_('Movimientos');
   const ya = {};
@@ -610,6 +621,7 @@ function analizar_(tx) {
   const cat = rows_('Catalogo');
   const catById = {};
   cat.forEach(function (c) { catById[String(c.id)] = c; });
+  const procs = procs_(movs);
   return (tx || []).map(function (t) {
     const o = { id: String(t.id), paciente: String(t.paciente || '').trim(), total: num_(t.total) };
     const f = mcFecha_(t.fecha);
@@ -630,10 +642,43 @@ function analizar_(tx) {
     if (ya[o.id]) o.estado = 'duplicado';
     else if (!f) o.estado = 'omitir';
     else if (String(t.estado || '').trim().toUpperCase() !== 'OK' || /pendiente/i.test(String(t.forma || '')) || !pagos.length) o.estado = 'omitir';
-    else if (o.lineas.some(function (l) { return l.proc; })) o.estado = 'procedimiento';
+    else if (o.lineas.some(function (l) { return l.proc; })) {
+      o.estado = 'procedimiento';
+      const lp = o.lineas.find(function (l) { return l.proc; });
+      o.procCat = lp.cat_id; o.procNombre = lp.cat_nombre;
+      const cand = procs.find(function (p) { return p.saldo > 0 && String(p.tipo).indexOf(lp.cat_nombre) === 0 && mismaPersona_(p.nombre, o.paciente); });
+      o.sugerido = cand ? cand.id : '';
+    }
     else if (!o.lineas.length || o.lineas.some(function (l) { return !l.cat_id; })) o.estado = 'emparejar';
     else o.estado = 'listo';
     return o;
+  });
+}
+function crearDesdeMedicloud_(u, o, f, cat) {
+  if (!cat) return null;
+  const partes = String(o.paciente || '').split(',');
+  const apellidos = titulo_(String(partes[0] || '').trim()), nombres = titulo_(String(partes.slice(1).join(' ') || '').trim());
+  const id = id_();
+  const iso = Utilities.formatDate(f.date, TZ, 'yyyy-MM-dd');
+  add_('Procedimientos', { id: id, fecha: f.date, tipo: cat.servicio, tipo_doc: '', num_doc: '', nombres: nombres || apellidos, apellidos: nombres ? apellidos : '',
+    celular: '', precio_total: o.total, presupuesto_gastos: 0, forma_cobro: 'Pago único', nota: 'Creado desde Medicloud #' + o.id,
+    usuario: u.nombre, anulado: 'NO', fecha_proc: iso });
+  const nombre = ((nombres ? nombres + ' ' : '') + apellidos).trim();
+  (plantillas_()[cat.servicio] || []).forEach(function (g) {
+    add_('Movimientos', { id: id_(), fecha: new Date(), mes: mesActual_(), usuario: u.nombre, tipo: 'previsto', bolsa: 'procedimiento',
+      concepto: g.concepto, monto: g.monto || 0, paciente: nombre, proc_id: id, estado: 'pendiente', anulado: 'NO' });
+  });
+  return { id: id, tipo: cat.servicio, nombre: nombre };
+}
+function completarPaciente(a, procId, d) {
+  chk_(a);
+  const pac = valPac_(d);
+  return lock_(function () {
+    const p = rows_('Procedimientos').find(function (x) { return String(x.id) === String(procId); });
+    if (!p) throw new Error('Procedimiento no encontrado.');
+    set_('Procedimientos', p._row, pac);
+    upsertPac_(pac);
+    return { ok: true };
   });
 }
 function previaImport(a, tx) {
@@ -669,7 +714,9 @@ function importarCaja(a, tx, decisiones) {
       const base = { fecha: f.date, mes: f.mes, usuario: u.nombre + ' (Medicloud)', anulado: 'NO', ref: o.id };
       if (o.estado === 'procedimiento') {
         const pid = procsDec[o.id];
-        const p = pid && pid !== 'omitir' ? procs.find(function (x) { return x.id === String(pid); }) : null;
+        let p = null;
+        if (pid === 'crear') p = crearDesdeMedicloud_(u, o, f, catById[o.procCat]);
+        else if (pid && pid !== 'omitir') p = procs.find(function (x) { return x.id === String(pid); });
         if (!p) { omit++; return; }
         o.pagos.forEach(function (pg) {
           add_('Movimientos', Object.assign({}, base, { id: id_(), tipo: 'ingreso', bolsa: 'procedimiento', concepto: p.tipo + ' – abono',
@@ -1062,6 +1109,10 @@ function instalar() {
       add_('Equivalencias', { codigo: x[0], servicio_id: x[1], precio_desde: x[2] || 0, descripcion: 'Inicial' });
     });
     if (fx) add_('Equivalencias', { codigo: 'FRAX', servicio_id: String(fx.id), precio_desde: 0, descripcion: 'Procedimiento' });
+  }
+  const hf = rows_('Catalogo').find(function (c) { return c.servicio === 'HIFU'; });
+  if (hf && !rows_('Equivalencias').some(function (e) { return String(e.codigo).toUpperCase() === 'HIFU'; })) {
+    add_('Equivalencias', { codigo: 'HIFU', servicio_id: String(hf.id), precio_desde: 0, descripcion: 'Procedimiento' });
   }
   if (rows_('Plantillas').length === 0) {
     const CL = 'Clínica (sala de operaciones + hospitalización)';

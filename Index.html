@@ -545,7 +545,7 @@ VIEWS.procs = async (filtro) => {
   ${lista.length ? lista.map(p => {
     const pg = pct(p.gastos, p.presupuesto);
     return `<div class="card tap" onclick="go('proc','${p.id}')">
-      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${p.fecha_proc ? 'Cirugía ' + esc(p.fecha_proc) : esc(p.fecha)} · ${esc(p.forma_cobro)}${p.pendientes ? ' · <span class="a">' + p.pendientes + ' pagos pendientes</span>' : ''}</p></div>
+      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${p.fecha_proc ? 'Fecha ' + esc(p.fecha_proc) : esc(p.fecha)} · ${esc(p.forma_cobro)}${p.pendientes ? ' · <span class="a">' + p.pendientes + ' pagos pendientes</span>' : ''}${p.faltanDatos ? ' · <span class="a">falta DNI</span>' : ''}</p></div>
       ${p.saldo > 0 ? `<span class="badge bd-a">Saldo ${money(p.saldo)}</span>` : '<span class="badge bd-g">Pagado</span>'}</div>
       <p class="small muted" style="margin:6px 0 0">Gastos ${money(p.gastos)} de ${money(p.presupuesto)}</p>${bar(pg, colorPct(pg))}
       <p class="small" style="margin:0">Cobrado ${money(p.cobrado)} de ${money(p.precio)} · Ganancia <b class="g">${money(p.ganancia)}</b></p></div>`;
@@ -558,8 +558,9 @@ VIEWS.proc = async (id) => {
   const pg = pct(p.gastos, p.presupuesto), pcob = pct(p.cobrado, p.precio);
   $('#app').innerHTML = `<p class="small tap b" onclick="go('procs')"><i class="ti ti-arrow-left"></i> Procedimientos</p>
   <h1>${esc(p.tipo)} · ${esc(p.nombre)}</h1>
-  <p class="small muted" style="margin-top:-8px">${esc(p.tipo_doc)} ${esc(p.num_doc)} · ${esc(p.celular)}</p>
-  <p class="small tap" onclick="cambiarFecha('${p.id}','${esc(p.fecha_proc_iso)}')"><i class="ti ti-calendar"></i> ${p.fecha_proc ? 'Cirugía: <b>' + esc(p.fecha_proc) + '</b>' : 'Sin fecha de cirugía'} <span class="b">· cambiar</span></p>
+  ${p.faltanDatos ? `<div class="card tap" style="background:var(--abg);border-color:#EF9F27" onclick='completarPac(${JSON.stringify({ id: p.id, nombres: p.nombres, apellidos: p.apellidos }).replace(/'/g, "&#39;")})'><span class="a"><i class="ti ti-alert-circle"></i> Falta DNI y celular · <u>completar</u></span></div>`
+    : `<p class="small muted" style="margin-top:-8px">${esc(p.tipo_doc)} ${esc(p.num_doc)} · ${esc(p.celular)}</p>`}
+  <p class="small tap" onclick="cambiarFecha('${p.id}','${esc(p.fecha_proc_iso)}')"><i class="ti ti-calendar"></i> ${p.fecha_proc ? 'Fecha del procedimiento: <b>' + esc(p.fecha_proc) + '</b>' : 'Sin fecha del procedimiento'} <span class="b">· cambiar</span></p>
   <div class="grid2" style="margin-bottom:12px">
     <div class="tile g"><p class="lb">Ganancia confirmada</p><b class="g">${money(p.ganancia)}</b></div>
     <div class="tile"><p class="lb">Ganancia estimada</p><b>${money(p.gananciaEst)}</b></div>
@@ -658,6 +659,25 @@ VIEWS.porfac = async () => {
   ${l.length ? `<div class="card" style="padding:4px 14px">${l.map(m => `<div class="row"><div class="t tap" onclick="go('proc','${m.proc_id}')"><p>${esc(m.concepto)}</p><p class="small muted">${esc(m.proc)}</p></div>
     <div style="text-align:right"><b>${m.monto ? '~' + money(m.monto) : 'por definir'}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar pago</span></div></div>`).join('')}</div>` : '<p class="muted center">No hay facturas pendientes.</p>'}`;
 };
+function completarPac(p) {
+  F = Object.assign(F || {}, { cp: { id: p.id, tipo_doc: 'DNI', num_doc: '', nombres: p.nombres || '', apellidos: p.apellidos || '', celular: '' } });
+  vCP();
+}
+function vCP() {
+  const c = F.cp;
+  modal(`<h2>Completar datos de la paciente</h2>
+  ${seg([{ t: 'DNI', on: c.tipo_doc === 'DNI', fn: "F.cp.tipo_doc='DNI';vCP()" }, { t: 'Carnet ext.', on: c.tipo_doc === 'CE', fn: "F.cp.tipo_doc='CE';vCP()" }, { t: 'Pasaporte', on: c.tipo_doc === 'PAS', fn: "F.cp.tipo_doc='PAS';vCP()" }])}
+  <p class="lb">Número</p><input value="${esc(c.num_doc)}" oninput="F.cp.num_doc=this.value.toUpperCase()">
+  <p class="lb">Nombres</p><input value="${esc(c.nombres)}" oninput="F.cp.nombres=this.value">
+  <p class="lb">Apellidos</p><input value="${esc(c.apellidos)}" oninput="F.cp.apellidos=this.value">
+  <p class="lb">Celular</p><input type="tel" value="${esc(c.celular)}" oninput="F.cp.celular=this.value">
+  <p class="err" id="cperr"></p>
+  <button class="btn pri" onclick="doCP()">Guardar</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
+}
+async function doCP() {
+  try { await api('completarPaciente', auth(), F.cp.id, F.cp); closeModal(); toast('Datos completados'); await refreshInit(); go('proc', F.cp.id); }
+  catch (e) { $('#cperr').textContent = msg(e); }
+}
 function confAnularProc(id) {
   modal(`<h2>¿Anular este procedimiento?</h2><p class="small muted">Se anulan también sus cobros y gastos. Quedan en la hoja marcados como anulados.</p>
   <button class="btn rd" onclick="doAnularProc('${id}')">Sí, anular</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
@@ -850,38 +870,56 @@ async function leerMC(file) {
     vIM();
   } catch (e) { $('#iprev').innerHTML = ''; $('#ierr').textContent = msg(e); }
 }
+function imEst(o) {
+  if (o.estado !== 'emparejar') return o.estado;
+  const map = o.lineas.map(l => l.cat_id || IM.equiv[l.codigo] || '');
+  const lp = map.find(id => id && id !== 'omitir' && (S.init.cat.find(c => c.id === id) || {}).tipo === 'procedimiento');
+  if (lp) { const c = S.init.cat.find(x => x.id === lp); o.procCat = lp; o.procNombre = c.servicio; return 'procedimiento'; }
+  return 'emparejar';
+}
 function imCalc() {
   let n = 0, t = 0;
   IM.an.forEach(o => {
     let ok = false;
-    if (o.estado === 'listo') ok = true;
-    else if (o.estado === 'emparejar') ok = o.lineas.every(l => l.cat_id || (IM.equiv[l.codigo] && IM.equiv[l.codigo] !== 'omitir')) && o.lineas.length > 0;
-    else if (o.estado === 'procedimiento') ok = IM.procs[o.id] && IM.procs[o.id] !== 'omitir';
+    const e = imEst(o);
+    if (e === 'procedimiento' && IM.procs[o.id] === undefined) IM.procs[o.id] = o.sugerido || 'crear';
+    if (e === 'listo') ok = true;
+    else if (e === 'emparejar') ok = o.lineas.every(l => l.cat_id || (IM.equiv[l.codigo] && IM.equiv[l.codigo] !== 'omitir')) && o.lineas.length > 0;
+    else if (e === 'procedimiento') ok = IM.procs[o.id] && IM.procs[o.id] !== 'omitir';
     o._ok = ok; if (ok) { n++; t += o.pagos.reduce((s, p) => s + p.monto, 0); }
   });
   return { n, t };
 }
 function vIM() {
-  const cnt = k => IM.an.filter(o => o.estado === k).length;
+  const c = imCalc();
+  const cnt = k => IM.an.filter(o => imEst(o) === k).length;
   const cods = {};
   IM.an.filter(o => o.estado === 'emparejar').forEach(o => o.lineas.forEach(l => { if (!l.cat_id) cods[l.codigo] = cods[l.codigo] || { servicio: l.servicio, n: 0 }; if (!l.cat_id) cods[l.codigo].n++; }));
   const serv = S.init.cat.filter(c => c.tipo === 'servicio');
   const procsSel = S.init.procs.filter(p => p.saldo > 0 || p.mesCreado >= mover(S.init.mes, -2));
-  const c = imCalc();
   const badge = { listo: ['Listo', 'bd-g'], emparejar: ['Por emparejar', 'bd-a'], procedimiento: ['Procedimiento', 'bd-p'], omitir: ['Se omite', 'bd-n'], duplicado: ['Ya importado', 'bd-n'] };
   $('#iprev').innerHTML = `<div class="card"><p class="small muted" style="margin:0 0 8px">${esc(IM.nombre)} · ${IM.an.length} cobros</p>
   <div class="grid2"><div class="tile g"><p class="lb">Listos</p><b class="g">${cnt('listo')}</b></div><div class="tile"><p class="lb">Por emparejar</p><b class="a">${cnt('emparejar')}</b></div>
   <div class="tile"><p class="lb">Procedimientos</p><b>${cnt('procedimiento')}</b></div><div class="tile"><p class="lb">Ya importados / se omiten</p><b class="muted">${cnt('duplicado')} / ${cnt('omitir')}</b></div></div></div>
   ${Object.keys(cods).length ? `<h2>Emparejar códigos (una sola vez)</h2><div class="card">${Object.keys(cods).map(k => `<p style="margin:0 0 4px"><b>${esc(k)}</b> · ${esc(cods[k].servicio)} <span class="muted small">(${cods[k].n})</span></p>
     <select onchange="IM.equiv['${esc(k)}']=this.value;vIM()"><option value="">Elegir servicio…</option><option value="omitir" ${IM.equiv[k] === 'omitir' ? 'selected' : ''}>No importar</option>
-    ${serv.map(s => `<option value="${s.id}" ${IM.equiv[k] === s.id ? 'selected' : ''}>${esc(s.servicio)}</option>`).join('')}</select>`).join('')}
+    <optgroup label="Servicios">${serv.map(s => `<option value="${s.id}" ${IM.equiv[k] === s.id ? 'selected' : ''}>${esc(s.servicio)}</option>`).join('')}</optgroup>
+    <optgroup label="Procedimientos">${S.init.cat.filter(x => x.tipo === 'procedimiento').map(s => `<option value="${s.id}" ${IM.equiv[k] === s.id ? 'selected' : ''}>${esc(s.servicio)}</option>`).join('')}</optgroup></select>`).join('')}
     <p class="small muted" style="margin:0">La app recordará estos emparejamientos para las próximas importaciones.</p></div>` : ''}
-  ${cnt('procedimiento') ? `<h2>Cobros de procedimientos</h2><div class="card">${IM.an.filter(o => o.estado === 'procedimiento').map(o => `<p style="margin:0 0 4px">${esc(o.fechaTxt)} · ${esc(o.lineas.map(l => l.servicio).join(', '))} · <b>${money(o.total)}</b><br><span class="small muted">${esc(o.paciente)}</span></p>
-    <select onchange="IM.procs['${o.id}']=this.value;vIM()"><option value="omitir">No importar (ya está en la app)</option>
-    ${procsSel.map(p => `<option value="${p.id}" ${IM.procs[o.id] === p.id ? 'selected' : ''}>Abono a: ${esc(p.tipo)} · ${esc(p.nombre)}${p.saldo ? ' (saldo ' + money(p.saldo) + ')' : ''}</option>`).join('')}</select>`).join('')}</div>` : ''}
-  <h2>Vista previa</h2><div class="card" style="padding:4px 14px">${IM.an.map(o => `<div class="row"><div class="t"><p>${esc(o.lineas.map(l => l.cat_nombre || IM.equiv[l.codigo] && (serv.find(s => s.id === IM.equiv[l.codigo]) || {}).servicio || l.servicio).join(', ') || '—')}</p>
+  ${cnt('procedimiento') ? `<h2>Cobros de procedimientos</h2>${IM.an.filter(o => imEst(o) === 'procedimiento').map(o => {
+    const dec = IM.procs[o.id];
+    const mismos = procsSel.filter(p => String(p.tipo).indexOf(o.procNombre || '') === 0);
+    const opt = (v, t, d) => `<label class="row" style="cursor:pointer;align-items:flex-start;border:1px solid ${dec === v ? '#85B7EB' : 'var(--bd)'};background:${dec === v ? 'var(--bbg)' : '#fff'};border-radius:10px;padding:8px;margin-bottom:6px">
+      <input type="radio" name="pr${o.id}" style="width:auto;margin:3px 0 0" ${dec === v ? 'checked' : ''} onchange="IM.procs['${o.id}']='${v}';vIM()"><span class="t"><b>${t}</b><br><span class="small muted">${d}</span></span></label>`;
+    return `<div class="card"><p style="margin:0 0 8px">${esc(o.fechaTxt)} · <b>${esc(o.procNombre || '')}</b> · ${money(o.total)} · ${esc(o.pagos.map(p => p.forma).join(' + '))}<br><span class="small muted">${esc(o.paciente)}</span></p>
+      ${o.sugerido ? opt(o.sugerido, 'Abonar al procedimiento encontrado', esc((procsSel.find(p => p.id === o.sugerido) || S.init.procs.find(p => p.id === o.sugerido) || {}).tipo || '') + ' · ' + esc((S.init.procs.find(p => p.id === o.sugerido) || {}).nombre || '') + ' (misma paciente)') : ''}
+      ${opt('crear', 'Crear procedimiento aquí', esc(o.procNombre || '') + ' · precio ' + money(o.total) + ' · pago registrado · gastos de su plantilla como pendientes · DNI y celular por completar')}
+      ${mismos.filter(p => p.id !== o.sugerido).length ? `<select style="margin:0 0 6px" onchange="if(this.value){IM.procs['${o.id}']=this.value;vIM()}"><option value="">Abonar a otro ${esc(o.procNombre || 'procedimiento')}…</option>${mismos.filter(p => p.id !== o.sugerido).map(p => `<option value="${p.id}" ${dec === p.id ? 'selected' : ''}>${esc(p.nombre)}${p.saldo ? ' · saldo ' + money(p.saldo) : ''}</option>`).join('')}</select>` : ''}
+      ${opt('omitir', 'No importar', 'Ya lo registré a mano')}</div>`;
+  }).join('')}` : ''}
+  <h2>Vista previa</h2><div class="card" style="padding:4px 14px">${IM.an.map(o => `<div class="row"><div class="t"><p>${esc(o.lineas.map(l => l.cat_nombre || IM.equiv[l.codigo] && (S.init.cat.find(s => s.id === IM.equiv[l.codigo]) || {}).servicio || l.servicio).join(', ') || '—')}</p>
     <p class="small muted">${esc(o.fechaTxt)} · ${esc(o.pagos.map(p => p.forma).join(' + ') || '—')} · #${esc(o.id)}</p></div>
-    <div style="text-align:right"><b class="${o._ok ? '' : 'muted'}">${money(o.total)}</b><br><span class="badge ${badge[o.estado][1]}">${badge[o.estado][0]}</span></div></div>`).join('')}</div>
+    <div style="text-align:right"><b class="${o._ok ? '' : 'muted'}">${money(o.total)}</b><br><span class="badge ${badge[imEst(o)][1]}">${badge[imEst(o)][0]}</span></div></div>`).join('')}</div>
   <p class="err" id="ierr2"></p>
   <button class="btn pri" ${busy || !c.n ? 'disabled' : ''} onclick="doImport()">Importar ${c.n} cobros · ${money(c.t)}</button>`;
 }
