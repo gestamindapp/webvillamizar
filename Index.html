@@ -229,7 +229,7 @@ VIEWS.inicio = async () => {
   ${r.porCobrar.length ? `<div class="card"><p class="mid"><i class="ti ti-hourglass"></i> Por cobrar · ${money(r.totalPorCobrar)}</p>${r.porCobrar.map(x => `
     <div class="row"><div class="t tap" onclick="go('proc','${x.id}')"><p>${esc(x.nombre)} · ${esc(x.tipo)}</p><p class="small muted">Saldo ${money(x.saldo)}</p></div>
     <a href="${wa(x.celular, 'Hola ' + x.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(x.saldo) + ' por ' + x.tipo + '.')}" target="_blank" style="color:#25D366;font-size:24px"><i class="ti ti-brand-whatsapp"></i></a></div>`).join('')}</div>` : ''}
-  ${r.porFacturar && r.porFacturar.n ? `<div class="card tap" onclick="go('porfac')"><div class="row"><span><i class="ti ti-file-invoice"></i> Facturas por llegar (${r.porFacturar.n})</span><b class="a">~${money(r.porFacturar.total)}</b></div></div>` : ''}
+  ${r.porFacturar && r.porFacturar.n ? `<div class="card tap" onclick="go('porfac')"><div class="row"><span><i class="ti ti-file-invoice"></i> Pagos pendientes de procedimientos (${r.porFacturar.n})</span><b class="a">~${money(r.porFacturar.total)}</b></div></div>` : ''}
   ${r.patPend ? `<div class="card tap" onclick="go('pat')"><div class="row"><span><i class="ti ti-microscope"></i> Por pagar a Patología</span><b class="a">${money(r.patPend)}</b></div></div>` : ''}`;
 };
 function fail(e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p><button class="btn" onclick="go(S.view,S.param)">Reintentar</button>`; if (/PIN|ingresar/i.test(msg(e))) salir(); }
@@ -401,15 +401,52 @@ async function guardarGasto() {
 
 // ============ NUEVO PROCEDIMIENTO ============
 VIEWS.nuevoProc = () => {
-  F = { modo: 'proc', cat_id: '', tipo_doc: 'DNI', num_doc: '', nombres: '', apellidos: '', celular: '', precio: '', presupuesto: '',
-    forma_cobro: 'unico', pago: '', forma: '', nota: '', err: '', conocida: false, fecha_proc: hoyISO() };
+  F = { modo: 'proc', cat_id: '', detalle: '', tipo_doc: 'DNI', num_doc: '', nombres: '', apellidos: '', celular: '', precio: '', presupuesto: '',
+    forma_cobro: 'unico', pago: '', forma: '', nota: '', err: '', conocida: false, fecha_proc: hoyISO(), gastos: [], formaG: '' };
   vProc();
 };
+function filaG(concepto, monto, fija) { return { concepto: concepto || '', monto: monto === undefined || monto === null ? '' : monto, fija: !!fija, pagado: false, fecha: '', forma: '', edit: false, ctipo: '', cnum: '' }; }
+function selTipo(id) {
+  F.cat_id = id;
+  const c = S.init.cat.find(x => x.id === id);
+  const pl = (S.init.plantillas || {})[c.servicio];
+  F.gastos = pl && pl.length ? pl.map(g => filaG(g.concepto, g.monto, true)) : [filaG(), filaG(), filaG(), filaG()];
+  vProc();
+}
+function totGastos(arr) { return arr.reduce((s, g) => s + (Number(g.monto) || 0), 0); }
+function ddmm(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+// Tabla de gastos reutilizable (al crear: F.gastos / en detalle: P.rows)
+function tablaGastos(arr, ref, re, fechaDef, nuevo) {
+  return `<div class="card" style="padding:6px 12px">
+  <div class="row small muted" style="padding:4px 0"><span class="t">Concepto</span><span style="width:84px;text-align:right">Monto</span><span style="width:44px;text-align:center">Pagado</span></div>
+  ${arr.map((g, i) => {
+    const forma = g.forma || (ref === 'F' ? F.formaG : P.formaG);
+    return `<div style="border-bottom:1px solid var(--bd);padding:6px 0">
+    <div style="display:flex;align-items:center;gap:8px">
+      ${g.fija ? `<span style="flex:1;min-width:0;font-size:14px">${esc(g.concepto)}</span>` : `<input style="flex:1;margin:0;padding:7px 8px;font-size:14px" placeholder="Concepto" value="${esc(g.concepto)}" oninput="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].concepto=this.value">`}
+      <input type="number" inputmode="decimal" style="width:84px;margin:0;padding:7px 8px;font-size:14px;text-align:right" placeholder="—" value="${esc(g.monto)}" oninput="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].monto=this.value;totG('${ref}')">
+      <input type="checkbox" style="width:22px;height:22px;margin:0 11px" ${g.pagado ? 'checked' : ''} onchange="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].pagado=this.checked;${re}">
+      ${nuevo ? `<i class="ti ti-x muted tap" style="font-size:16px" onclick="F.gastos.splice(${i},1);${re}"></i>` : ''}
+    </div>
+    ${g.pagado ? `<p class="small g" style="margin:4px 0 0">${ddmm(g.fecha || fechaDef)} · ${esc(forma || 'elige forma de pago')}${g.ctipo ? ' · ' + esc(g.ctipo) + (g.cnum ? ' ' + esc(g.cnum) : '') : ''} · <span class="b tap" onclick="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].edit=!${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].edit;${re}">${g.edit ? 'listo' : 'cambiar'}</span></p>` : ''}
+    ${g.pagado && g.edit ? `<div style="background:#F1EFE8;border-radius:10px;padding:8px;margin-top:6px">
+      <p class="lb">Fecha de pago</p><input type="date" max="${S.init.hoy}" value="${esc(g.fecha || fechaDef)}" onchange="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].fecha=this.value;${re}">
+      <p class="lb">Forma de pago</p>${S.init.formas.map(f => chip(f, forma === f, `${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].forma='${f}';${re}`)).join('')}
+      <p class="lb">Comprobante (opcional)</p>${S.init.comps.map(c => chip(c, g.ctipo === c, `${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].ctipo=(${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].ctipo==='${c}'?'':'${c}');${re}`)).join('')}
+      ${g.ctipo && g.ctipo !== 'Sin comprobante' ? `<input placeholder="Número" value="${esc(g.cnum)}" oninput="${ref === 'F' ? 'F.gastos' : 'P.rows'}[${i}].cnum=this.value">` : ''}
+    </div>` : ''}</div>`;
+  }).join('')}
+  ${nuevo ? `<p class="small b tap" style="margin:8px 0 4px" onclick="F.gastos.push(filaG());${re}"><i class="ti ti-plus"></i> Agregar concepto</p>` : ''}
+  <div class="row" style="border:none"><b>Total gastos</b><b id="tot${ref}">${money(totGastos(arr))}</b></div></div>`;
+}
+function totG(ref) { const el = $('#tot' + ref); if (el) el.textContent = money(totGastos(ref === 'F' ? F.gastos : P.rows)); }
 function vProc() {
   const tipos = S.init.cat.filter(c => c.tipo === 'procedimiento');
+  const tc = S.init.cat.find(c => c.id === F.cat_id);
   const reglas = { DNI: '8 dígitos', CE: '9 caracteres o más', PAS: 'letras y números' };
   $('#app').innerHTML = `<h1>Nuevo procedimiento</h1>
-  <p class="lb">Tipo</p>${tipos.map(t => chip(t.servicio, F.cat_id === t.id, `F.cat_id='${t.id}';vProc()`)).join('')}
+  <p class="lb">Tipo</p>${tipos.map(t => chip(t.servicio, F.cat_id === t.id, `selTipo('${t.id}')`)).join('')}
+  ${tc && tc.detalle ? `<p class="lb" style="margin-top:6px">Especificar ${/cirug/i.test(tc.servicio) ? 'cirugía' : 'procedimiento'} *</p><input value="${esc(F.detalle)}" placeholder="${/cirug/i.test(tc.servicio) ? 'Histerectomía total' : 'Labioplastia'}" oninput="F.detalle=this.value">` : ''}
   <h2>Paciente</h2>
   <p class="lb">Tipo de documento *</p>
   ${seg([{ t: 'DNI', on: F.tipo_doc === 'DNI', fn: "F.tipo_doc='DNI';vProc()" }, { t: 'Carnet ext.', on: F.tipo_doc === 'CE', fn: "F.tipo_doc='CE';vProc()" }, { t: 'Pasaporte', on: F.tipo_doc === 'PAS', fn: "F.tipo_doc='PAS';vProc()" }])}
@@ -419,16 +456,18 @@ function vProc() {
   <p class="lb">Nombres *</p><input value="${esc(F.nombres)}" oninput="F.nombres=this.value">
   <p class="lb">Apellidos *</p><input value="${esc(F.apellidos)}" oninput="F.apellidos=this.value">
   <p class="lb">Celular * (9 dígitos, o con + si es extranjero)</p><input type="tel" value="${esc(F.celular)}" oninput="F.celular=this.value">
-  <p class="lb">Fecha de la cirugía o procedimiento (se puede cambiar después)</p>
-  <input type="date" value="${esc(F.fecha_proc)}" oninput="F.fecha_proc=this.value">
-  <h2>Montos</h2>
-  <div class="grid2"><div><p class="lb">Precio total *</p><input type="number" inputmode="decimal" value="${esc(F.precio)}" oninput="F.precio=this.value"></div>
-  <div><p class="lb">Presupuesto de gastos</p><input type="number" inputmode="decimal" value="${esc(F.presupuesto)}" oninput="F.presupuesto=this.value"></div></div>
-  <p class="lb">Forma de cobro</p>
+  <p class="lb">Fecha de la cirugía o procedimiento</p>
+  <input type="date" value="${esc(F.fecha_proc)}" onchange="F.fecha_proc=this.value;vProc()">
+  <h2>Cobro a la paciente</h2>
+  <p class="lb">Precio total *</p><input type="number" inputmode="decimal" value="${esc(F.precio)}" oninput="F.precio=this.value">
   ${seg([{ t: 'Pago único', on: F.forma_cobro === 'unico', fn: "F.forma_cobro='unico';vProc()" }, { t: 'Con adelantos', on: F.forma_cobro === 'adelantos', fn: "F.forma_cobro='adelantos';vProc()" }])}
   <p class="lb">${F.forma_cobro === 'unico' ? 'Pago recibido hoy' : 'Adelanto recibido hoy'} (opcional)</p>
   <input type="number" inputmode="decimal" value="${esc(F.pago)}" oninput="F.pago=this.value">
-  <p class="lb">Forma de pago</p>${S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vProc()`)).join('')}
+  <p class="lb">Forma de pago del cobro</p>${S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vProc()`)).join('')}
+  ${F.cat_id ? `<h2>Gastos del procedimiento</h2>
+  <p class="small muted" style="margin-top:-4px">Escribe los montos. Marca "Pagado" lo que ya se pagó; lo demás queda pendiente.</p>
+  <p class="lb">Forma de pago de los gastos marcados</p>${S.init.formas.map(f => chip(f, F.formaG === f, `F.formaG='${f}';vProc()`)).join('')}
+  ${tablaGastos(F.gastos, 'F', 'vProc()', F.fecha_proc, true)}` : ''}
   <p class="lb" style="margin-top:4px">Nota (opcional)</p><input value="${esc(F.nota)}" oninput="F.nota=this.value">
   ${F.err ? `<p class="err">${esc(F.err)}</p>` : ''}
   <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarProc()">Guardar procedimiento</button>`;
@@ -445,6 +484,8 @@ async function buscarPac() {
 function valPac() {
   const n = F.num_doc.trim().toUpperCase(), cel = F.celular.replace(/[\s-]/g, '');
   if (!F.cat_id) return 'Elige el tipo de procedimiento.';
+  const tc = S.init.cat.find(c => c.id === F.cat_id);
+  if (tc && tc.detalle && !F.detalle.trim()) return 'Especifica la cirugía o el procedimiento.';
   if (F.tipo_doc === 'DNI' && !/^\d{8}$/.test(n)) return 'El DNI debe tener 8 dígitos.';
   if (F.tipo_doc === 'CE' && !/^[A-Z0-9]{9,12}$/.test(n)) return 'El carnet de extranjería debe tener al menos 9 caracteres.';
   if (F.tipo_doc === 'PAS' && !/^[A-Z0-9]{6,12}$/.test(n)) return 'El pasaporte debe tener entre 6 y 12 letras o números.';
@@ -452,7 +493,13 @@ function valPac() {
   if (cel.charAt(0) === '+' ? !/^\+\d{8,15}$/.test(cel) : !/^9\d{8}$/.test(cel)) return 'El celular debe tener 9 dígitos y empezar con 9 (o + y código de país).';
   if (!(Number(F.precio) > 0)) return 'Ingresa el precio total.';
   if (Number(F.pago) > Number(F.precio)) return 'El pago no puede ser mayor al precio total.';
-  if (Number(F.pago) > 0 && !F.forma) return 'Elige la forma de pago.';
+  if (Number(F.pago) > 0 && !F.forma) return 'Elige la forma de pago del cobro.';
+  for (const g of F.gastos) {
+    if (g.pagado && !String(g.concepto).trim()) return 'Escribe el concepto de cada gasto marcado como pagado.';
+    if (g.pagado && !(Number(g.monto) > 0)) return 'Escribe el monto de "' + g.concepto + '" para marcarlo como pagado.';
+    if (g.pagado && !(g.forma || F.formaG)) return 'Elige la forma de pago de los gastos marcados.';
+    if (g.pagado && (g.fecha || F.fecha_proc) > S.init.hoy) return 'La fecha de pago de "' + g.concepto + '" no puede ser futura. Cámbiala con "cambiar".';
+  }
   return '';
 }
 async function guardarProc() {
@@ -461,7 +508,9 @@ async function guardarProc() {
   if (F.err) return vProc();
   busy = true; vProc();
   try {
-    const r = await api('crearProcedimiento', auth(), F);
+    const payload = Object.assign({}, F, { gastos: F.gastos.filter(g => String(g.concepto).trim()).map(g => ({ concepto: g.concepto, monto: g.monto,
+      pagado: g.pagado, forma: g.forma || F.formaG, fecha: g.fecha || F.fecha_proc, comp_tipo: g.ctipo, comp_num: g.cnum })) });
+    const r = await api('crearProcedimiento', auth(), payload);
     busy = false; toast('Procedimiento guardado');
     await refreshInit(); go('proc', r.id);
   } catch (e) { busy = false; F.err = msg(e); vProc(); }
@@ -480,7 +529,7 @@ VIEWS.procs = async (filtro) => {
   ${lista.length ? lista.map(p => {
     const pg = pct(p.gastos, p.presupuesto);
     return `<div class="card tap" onclick="go('proc','${p.id}')">
-      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${p.fecha_proc ? 'Cirugía ' + esc(p.fecha_proc) : esc(p.fecha)} · ${esc(p.forma_cobro)}${p.porFacturar ? ' · <span class="a">facturas por llegar</span>' : ''}</p></div>
+      <div class="row" style="padding-top:0"><div class="t"><b>${esc(p.tipo)} · ${esc(p.nombre)}</b><p class="small muted">${p.fecha_proc ? 'Cirugía ' + esc(p.fecha_proc) : esc(p.fecha)} · ${esc(p.forma_cobro)}${p.pendientes ? ' · <span class="a">' + p.pendientes + ' pagos pendientes</span>' : ''}</p></div>
       ${p.saldo > 0 ? `<span class="badge bd-a">Saldo ${money(p.saldo)}</span>` : '<span class="badge bd-g">Pagado</span>'}</div>
       <p class="small muted" style="margin:6px 0 0">Gastos ${money(p.gastos)} de ${money(p.presupuesto)}</p>${bar(pg, colorPct(pg))}
       <p class="small" style="margin:0">Cobrado ${money(p.cobrado)} de ${money(p.precio)} · Ganancia <b class="g">${money(p.ganancia)}</b></p></div>`;
@@ -499,7 +548,7 @@ VIEWS.proc = async (id) => {
     <div class="tile g"><p class="lb">Ganancia confirmada</p><b class="g">${money(p.ganancia)}</b></div>
     <div class="tile"><p class="lb">Ganancia estimada</p><b>${money(p.gananciaEst)}</b></div>
   </div>
-  <p class="small muted" style="margin:-4px 0 10px">Cobrado ${money(p.cobrado)} de ${money(p.precio)}. La estimada asume el cobro completo y resta las facturas por llegar.</p>
+  <p class="small muted" style="margin:-4px 0 10px">Cobrado ${money(p.cobrado)} de ${money(p.precio)}. La estimada asume el cobro completo y resta los pagos pendientes.</p>
   <div class="card">
     <p class="lb">Cobro · ${esc(p.forma_cobro)}</p>${bar(pcob, '#378ADD')}
     <p class="small ${p.saldo > 0 ? 'a' : 'g'}" style="margin:0 0 10px">${p.saldo > 0 ? 'Saldo por cobrar ' + money(p.saldo) : 'Pagado por completo'}</p>
@@ -509,50 +558,79 @@ VIEWS.proc = async (id) => {
   <div class="grid2"><button class="btn rd" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento'})"><i class="ti ti-minus"></i> Gasto</button>
   <button class="btn" onclick="nuevoReg('gasto',{proc:'${p.id}',destino:'procedimiento',bio:true})"><i class="ti ti-microscope"></i> Biopsia</button></div>
   ${p.saldo > 0 ? `<a class="btn" href="${wa(p.celular, 'Hola ' + p.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(p.saldo) + ' por ' + p.tipo + '.')}" target="_blank" style="text-decoration:none;color:#1f1e1b"><i class="ti ti-brand-whatsapp" style="color:#25D366"></i> Recordar saldo por WhatsApp</a>` : ''}
-  <h2>Facturas por llegar</h2>
-  ${(() => { const pv = p.movs.filter(m => m.tipo === 'previsto' && m.estado === 'pendiente' && !m.anulado);
-    return pv.length ? `<div class="card" style="padding:4px 14px">${pv.map(m => `<div class="row"><div class="t"><p>${esc(m.concepto)}</p><p class="small muted">anotada ${esc(m.fecha)} · estimado</p></div>
-      <div style="text-align:right"><b>~${money(m.monto)}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</span></div></div>`).join('')}</div>` : '<p class="small muted">No hay facturas pendientes.</p>'; })()}
-  <button class="btn" onclick="anotarPF('${p.id}')"><i class="ti ti-plus"></i> Anotar factura por llegar</button>
+  <h2>Pagos del procedimiento</h2>
+  <div id="pend"></div>
+  <button class="btn" onclick="anotarPF('${p.id}')"><i class="ti ti-plus"></i> Agregar concepto de gasto</button>
   <h2>Movimientos</h2><div class="card" style="padding:4px 14px">${p.movs.filter(m => m.tipo !== 'previsto').length ? p.movs.filter(m => m.tipo !== 'previsto').map(movRow).join('') : '<p class="small muted">Sin movimientos.</p>'}</div>
   ${p.nota ? `<p class="small muted">Nota: ${esc(p.nota)}</p>` : ''}
   ${isAdmin() ? `<button class="btn" style="color:#A32D2D" onclick="confAnularProc('${p.id}')">Anular procedimiento</button>` : ''}`;
+  P = { procId: p.id, formaG: '', err: '', rows: p.movs.filter(m => m.tipo === 'previsto' && m.estado === 'pendiente' && !m.anulado).reverse()
+    .map(m => Object.assign(filaG(m.concepto, m.monto || '', true), { id: m.id, orig: m.monto })) };
+  vPend();
 };
+let P = { rows: [] };
+function vPend() {
+  const el = $('#pend'); if (!el) return;
+  if (!P.rows.length) { el.innerHTML = '<p class="small muted">No hay pagos pendientes.</p>'; return; }
+  const marcados = P.rows.filter(r => r.pagado).length;
+  el.innerHTML = `<p class="lb">Forma de pago de lo marcado</p>${S.init.formas.map(f => chip(f, P.formaG === f, `P.formaG='${f}';vPend()`)).join('')}
+  ${tablaGastos(P.rows, 'P', 'vPend()', S.init.hoy, false)}
+  ${P.err ? `<p class="err">${esc(P.err)}</p>` : ''}
+  <button class="btn pri" ${busy ? 'disabled' : ''} onclick="guardarPend()">${marcados ? 'Guardar ' + marcados + (marcados === 1 ? ' pago' : ' pagos') : 'Guardar montos'}</button>`;
+}
+async function guardarPend() {
+  if (busy) return;
+  P.err = '';
+  for (const g of P.rows) {
+    if (g.pagado && !(Number(g.monto) > 0)) { P.err = 'Escribe el monto de "' + g.concepto + '".'; break; }
+    if (g.pagado && !(g.forma || P.formaG)) { P.err = 'Elige la forma de pago.'; break; }
+  }
+  if (P.err) return vPend();
+  const items = P.rows.filter(g => g.pagado || String(g.monto) !== String(g.orig)).map(g => ({ id: g.id, monto: g.monto, pagado: g.pagado,
+    forma: g.forma || P.formaG, fecha: g.fecha || S.init.hoy, comp_tipo: g.ctipo, comp_num: g.cnum }));
+  if (!items.length) { P.err = 'Marca algún pago o cambia un monto.'; return vPend(); }
+  busy = true; vPend();
+  try {
+    const r = await api('pagarPendientes', auth(), P.procId, items);
+    busy = false; toast(r.pagados ? r.pagados + (r.pagados === 1 ? ' pago registrado' : ' pagos registrados') : 'Montos actualizados');
+    await refreshInit(); go('proc', P.procId);
+  } catch (e) { busy = false; P.err = msg(e); vPend(); }
+}
 function cambiarFecha(id, actual) {
   modal(`<h2>Fecha de la cirugía</h2><input type="date" id="fp" value="${esc(actual || hoyISO())}"><p class="err" id="fperr"></p>
   <button class="btn pri" onclick="doFecha('${id}')">Guardar fecha</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
 }
 async function doFecha(id) { try { await api('fechaProc', auth(), id, $('#fp').value); closeModal(); toast('Fecha actualizada'); await refreshInit(); go('proc', id); } catch (e) { $('#fperr').textContent = msg(e); } }
 function anotarPF(id) {
-  modal(`<h2>Anotar factura por llegar</h2><p class="small muted">Un gasto que aún no tiene factura. Se resta de la ganancia estimada y queda como recordatorio.</p>
-  <p class="lb">¿Qué factura falta?</p><input id="pfc" placeholder="Torre de laparoscopia">
-  <p class="lb">Monto estimado</p><input id="pfm" type="number" inputmode="decimal" class="monto"><p class="err" id="pferr"></p>
+  modal(`<h2>Agregar concepto de gasto</h2><p class="small muted">Queda pendiente en la tabla de pagos del procedimiento.</p>
+  <p class="lb">Concepto</p><input id="pfc" placeholder="Ejemplo: alquiler de equipo">
+  <p class="lb">Monto (opcional si aún no se sabe)</p><input id="pfm" type="number" inputmode="decimal" class="monto"><p class="err" id="pferr"></p>
   <button class="btn pri" onclick="doAnotarPF('${id}')">Guardar</button><button class="btn" onclick="closeModal()">Cancelar</button>`);
 }
 async function doAnotarPF(id) {
   const c = $('#pfc').value.trim(), m = Number($('#pfm').value);
   if (!c) return $('#pferr').textContent = 'Escribe qué factura falta llegar.';
-  if (!(m > 0)) return $('#pferr').textContent = 'Escribe un monto estimado.';
-  try { await api('anotarPorFacturar', auth(), id, c, m); closeModal(); toast('Factura por llegar anotada'); await refreshInit(); go('proc', id); } catch (e) { $('#pferr').textContent = msg(e); }
+  try { await api('anotarPorFacturar', auth(), id, c, m || 0); closeModal(); toast('Concepto agregado'); await refreshInit(); go('proc', id); } catch (e) { $('#pferr').textContent = msg(e); }
 }
 let RF = null;
-function regFactura(m) { RF = m; F = Object.assign(F || {}, { ctipo: 'Factura', cnum: '', forma: '' }); vRF(); }
+function regFactura(m) { RF = m; F = Object.assign(F || {}, { ctipo: '', cnum: '', forma: '', rfm: '', rff: '' }); vRF(); }
 function vRF() {
   const m = RF;
-  modal(`<h2>Registrar factura</h2><p class="small muted">${esc(m.concepto)} · ${esc(m.paciente || '')} · estimado ${money(m.monto)}</p>
-  <p class="lb">Monto real</p><input id="rfm" type="number" inputmode="decimal" class="monto" value="${esc(F.rfm || m.monto)}" oninput="F.rfm=this.value">
+  modal(`<h2>Registrar pago</h2><p class="small muted">${esc(m.concepto)} · ${esc(m.paciente || '')} · estimado ${money(m.monto)}</p>
+  <p class="lb">Monto real</p><input id="rfm" type="number" inputmode="decimal" class="monto" value="${esc(F.rfm || m.monto || '')}" oninput="F.rfm=this.value">
   <p class="lb">Forma de pago</p>${S.init.formas.map(f => chip(f, F.forma === f, `F.forma='${f}';vRF()`)).join('')}
   ${compHTML('vRF()')}
-  <p class="small muted">Se registra con la fecha de hoy y queda unida al procedimiento.</p><p class="err" id="rferr"></p>
-  <button class="btn pri" onclick="doRF()">Guardar factura</button><button class="btn" onclick="F.rfm='';closeModal()">Cancelar</button>`);
+  <p class="lb">Fecha de pago</p><input type="date" id="rff" max="${S.init.hoy}" value="${esc(F.rff || S.init.hoy)}" onchange="F.rff=this.value">
+  <p class="small muted">Queda unido al procedimiento y cuenta en el mes de esa fecha.</p><p class="err" id="rferr"></p>
+  <button class="btn pri" onclick="doRF()">Guardar pago</button><button class="btn" onclick="F.rfm='';closeModal()">Cancelar</button>`);
 }
 async function doRF() {
   const mo = Number($('#rfm').value);
   if (!(mo > 0)) return $('#rferr').textContent = 'Ingresa el monto real.';
   if (!F.forma) return $('#rferr').textContent = 'Elige la forma de pago.';
   try {
-    await api('registrarFactura', auth(), RF.id, { monto: mo, forma: F.forma, comp_tipo: F.ctipo, comp_num: F.cnum });
-    F.rfm = ''; closeModal(); toast('Factura registrada'); await refreshInit();
+    await api('registrarFactura', auth(), RF.id, { monto: mo, forma: F.forma, comp_tipo: F.ctipo, comp_num: F.cnum, fecha: $('#rff').value });
+    F.rfm = ''; closeModal(); toast('Pago registrado'); await refreshInit();
     if (S.view === 'proc') go('proc', RF.proc_id); else go(S.view, S.param);
   } catch (e) { $('#rferr').textContent = msg(e); }
 }
@@ -560,9 +638,9 @@ VIEWS.porfac = async () => {
   loading();
   let l;
   try { l = await api('porFacturar', auth()); } catch (e) { return fail(e); }
-  $('#app').innerHTML = `<h1><i class="ti ti-file-invoice"></i> Facturas por llegar</h1>
+  $('#app').innerHTML = `<h1><i class="ti ti-file-invoice"></i> Pagos pendientes de procedimientos</h1>
   ${l.length ? `<div class="card" style="padding:4px 14px">${l.map(m => `<div class="row"><div class="t tap" onclick="go('proc','${m.proc_id}')"><p>${esc(m.concepto)}</p><p class="small muted">${esc(m.proc)}</p></div>
-    <div style="text-align:right"><b>~${money(m.monto)}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</span></div></div>`).join('')}</div>` : '<p class="muted center">No hay facturas pendientes.</p>'}`;
+    <div style="text-align:right"><b>${m.monto ? '~' + money(m.monto) : 'por definir'}</b><br><span class="chip" style="margin:4px 0 0;background:var(--abg);color:var(--a);border-color:var(--abg)" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar pago</span></div></div>`).join('')}</div>` : '<p class="muted center">No hay facturas pendientes.</p>'}`;
 };
 function confAnularProc(id) {
   modal(`<h2>¿Anular este procedimiento?</h2><p class="small muted">Se anulan también sus cobros y gastos. Quedan en la hoja marcados como anulados.</p>
@@ -597,13 +675,17 @@ function verMov(m) {
   modal(`<span class="badge ${t[1]}">${t[0]}</span> <span class="badge bd-n">${esc(m.bolsa || '')}</span>
   <h2>${esc(m.concepto)}</h2><p class="big">${money(m.monto)}</p>
   <p class="small muted">${esc(m.fecha)} · registró ${esc(m.usuario)}${m.forma ? ' · ' + esc(m.forma) : ''}${m.paciente ? '<br>Paciente: ' + esc(m.paciente) : ''}${m.estado ? '<br>Estado: ' + esc(m.estado) : ''}${m.comprobante ? '<br>Comprobante: ' + esc(m.comprobante) : ''}${m.nota ? '<br>Nota: ' + esc(m.nota) : ''}</p>
-  ${(!m.anulado && m.tipo === 'previsto' && m.estado === 'pendiente') ? `<button class="btn gr" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar factura</button>` : ''}
+  ${(!m.anulado && m.tipo === 'gasto') ? `<p class="lb">Comprobante</p><div style="display:flex;gap:6px"><select id="cpt" style="flex:1">${['', ...S.init.comps].map(c => `<option ${String(m.comprobante || '').startsWith(c) && c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    <input id="cpn" style="flex:1" placeholder="Número" value="${esc(String(m.comprobante || '').replace(/^(Factura|Boleta|Recibo|Código de operación|Sin comprobante)\s*/, ''))}"></div>
+    <button class="btn sm" onclick="doComp('${m.id}')">Guardar comprobante</button>` : ''}
+  ${(!m.anulado && m.tipo === 'previsto' && m.estado === 'pendiente') ? `<button class="btn gr" onclick='regFactura(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Registrar pago</button>` : ''}
   ${m.anulado ? '<p class="err">Registro anulado</p>' : (m.origen && m.tipo === 'patologia' ? '<p class="small muted">Este descuento se creó solo. Para quitarlo, anula el ingreso que lo originó.</p>' : (isAdmin() ?
     `<button class="btn rd" onclick="doAnular('${m.id}')">Anular registro</button><p class="small muted">Si fue un error, anúlalo y vuelve a registrarlo bien.</p>` :
     `<p class="lb">¿Qué hay que corregir?</p><input id="motivo" placeholder="Ejemplo: el monto era S/ 200"><p class="err" id="merr"></p>
      <button class="btn pri" onclick="doCorreccion('${m.id}')">Pedir corrección</button>`))}
   <button class="btn" onclick="closeModal()">Cerrar</button>`);
 }
+async function doComp(id) { try { await api('setComprobante', auth(), id, $('#cpt').value, $('#cpn').value); closeModal(); toast('Comprobante guardado'); go(S.view, S.param); } catch (e) { toast(msg(e), true); } }
 async function doAnular(id) { try { await api('anular', auth(), id); closeModal(); toast('Registro anulado'); await refreshInit(); go(S.view, S.param); } catch (e) { toast(msg(e), true); } }
 async function doCorreccion(id) {
   const mo = $('#motivo').value.trim();

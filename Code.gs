@@ -10,7 +10,7 @@ const FORMAS = ['Efectivo', 'Transferencia', 'Yape'];
 
 const H = {
   Usuarios:       ['id', 'nombre', 'rol', 'pin', 'activo'],
-  Catalogo:       ['id', 'categoria', 'servicio', 'precio', 'tipo', 'pap', 'biopsia_cu', 'activo'],
+  Catalogo:       ['id', 'categoria', 'servicio', 'precio', 'tipo', 'pap', 'biopsia_cu', 'activo', 'pide_detalle'],
   Presupuesto:    ['id', 'dia', 'concepto', 'monto', 'categoria', 'desde', 'hasta', 'estimado', 'activo'],
   Movimientos:    ['id', 'fecha', 'mes', 'usuario', 'tipo', 'bolsa', 'concepto', 'monto', 'forma_pago',
                    'paciente', 'proc_id', 'pres_id', 'origen_id', 'estado', 'nota', 'anulado', 'comprobante'],
@@ -18,7 +18,8 @@ const H = {
                    'precio_total', 'presupuesto_gastos', 'forma_cobro', 'nota', 'usuario', 'anulado', 'fecha_proc'],
   Pacientes:      ['num_doc', 'tipo_doc', 'nombres', 'apellidos', 'celular', 'actualizado'],
   Correcciones:   ['id', 'fecha', 'usuario', 'mov_id', 'detalle', 'motivo', 'estado'],
-  Ajustes:        ['ajuste', 'valor', 'nota']
+  Ajustes:        ['ajuste', 'valor', 'nota'],
+  Plantillas:     ['procedimiento', 'concepto', 'monto_sugerido', 'orden', 'activo']
 };
 // Columnas que deben guardarse como texto (para no perder ceros ni convertir a fecha)
 const TEXTO = {
@@ -102,6 +103,25 @@ function fechaOk_(f) {
   if (f && !/^\d{4}-\d{2}-\d{2}$/.test(f)) throw new Error('Revisa la fecha de la cirugía.');
   return f;
 }
+function hoyIso_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'); }
+function fechaPago_(f) {
+  f = String(f || '').trim() || hoyIso_();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) throw new Error('Revisa la fecha de pago.');
+  if (f > hoyIso_()) throw new Error('La fecha de pago no puede ser futura.');
+  return { iso: f, date: new Date(f + 'T12:00:00-05:00'), mes: f.slice(0, 7) };
+}
+function plantillas_() {
+  const out = {};
+  try {
+    rows_('Plantillas').filter(function (p) { return String(p.activo).toUpperCase() !== 'NO'; })
+      .sort(function (a, b) { return num_(a.orden) - num_(b.orden); })
+      .forEach(function (p) {
+        const k = String(p.procedimiento).trim();
+        (out[k] = out[k] || []).push({ concepto: String(p.concepto).trim(), monto: String(p.monto_sugerido) === '' ? '' : num_(p.monto_sugerido) });
+      });
+  } catch (e) {}
+  return out;
+}
 function fechaTxt_(f) { f = mm_(f); return /^\d{4}-\d{2}-\d{2}/.test(f) ? f.slice(8, 10) + '/' + f.slice(5, 7) + '/' + f.slice(0, 4) : ''; }
 function forma_(f) { if (FORMAS.indexOf(f) < 0) throw new Error('Elige la forma de pago.'); return f; }
 
@@ -148,7 +168,7 @@ function init(a) {
   const movs = rows_('Movimientos');
   const cat = rows_('Catalogo').filter(function (c) { return yes_(c.activo); }).map(function (c) {
     return { id: String(c.id), categoria: c.categoria, servicio: c.servicio, precio: num_(c.precio),
-      tipo: c.tipo, pap: num_(c.pap), biopsia: yes_(c.biopsia_cu) };
+      tipo: c.tipo, pap: num_(c.pap), biopsia: yes_(c.biopsia_cu), detalle: yes_(c.pide_detalle) };
   });
   const mes = mesActual_();
   const pres = presMes_(mes, movs.filter(function (m) { return mm_(m.mes) === mes && !yes_(m.anulado); }));
@@ -158,7 +178,7 @@ function init(a) {
   });
   const top = Object.keys(cnt).sort(function (x, y) { return cnt[y] - cnt[x]; }).slice(0, 4);
   return { user: { id: String(u.id), nombre: u.nombre, rol: String(u.rol).toLowerCase() },
-    cat: cat, pres: pres, top: top, procs: procs_(movs), formas: FORMAS, comps: COMP, biopsiaCU: biopsiaCU_(), mes: mes };
+    cat: cat, pres: pres, top: top, procs: procs_(movs), formas: FORMAS, comps: COMP, biopsiaCU: biopsiaCU_(), mes: mes, plantillas: plantillas_(), hoy: hoyIso_() };
 }
 
 // ================= Procedimientos =================
@@ -171,14 +191,15 @@ function procs_(movs) {
     const cobrado = suma_(mine.filter(function (m) { return m.tipo === 'ingreso'; }));
     const gastos = suma_(mine.filter(function (m) { return m.tipo === 'gasto'; }));
     const patologia = suma_(mine.filter(function (m) { return m.tipo === 'patologia'; }));
-    const porFacturar = suma_(mine.filter(function (m) { return m.tipo === 'previsto' && m.estado === 'pendiente'; }));
+    const pend = mine.filter(function (m) { return m.tipo === 'previsto' && m.estado === 'pendiente'; });
+    const porFacturar = suma_(pend);
     const precio = num_(p.precio_total);
     return { id: id, fecha: fmt_(p.fecha, 'dd/MM/yyyy'), mesCreado: fmt_(p.fecha, 'yyyy-MM'), tipo: p.tipo,
       tipo_doc: p.tipo_doc, num_doc: String(p.num_doc), nombre: (p.nombres + ' ' + p.apellidos).trim(),
       celular: String(p.celular), precio: precio, presupuesto: num_(p.presupuesto_gastos),
       forma_cobro: p.forma_cobro, nota: p.nota, cobrado: cobrado, gastos: num_(gastos + patologia),
       patologia: patologia, porFacturar: porFacturar, saldo: Math.max(0, num_(precio - cobrado)), ganancia: num_(cobrado - gastos - patologia),
-      gananciaEst: num_(precio - gastos - patologia - porFacturar), fecha_proc: fechaTxt_(p.fecha_proc), fecha_proc_iso: mm_(p.fecha_proc).slice(0, 10) };
+      gananciaEst: num_(precio - gastos - patologia - porFacturar), pendientes: pend.length, fecha_proc: fechaTxt_(p.fecha_proc), fecha_proc_iso: mm_(p.fecha_proc).slice(0, 10) };
   }).reverse();
 }
 
@@ -215,24 +236,50 @@ function crearProcedimiento(a, d) {
   const pac = valPac_(d);
   const cat = rows_('Catalogo').find(function (x) { return String(x.id) === String(d.cat_id) && x.tipo === 'procedimiento'; });
   if (!cat) throw new Error('Elige el tipo de procedimiento.');
-  const precio = num_(d.precio), pres = num_(d.presupuesto), pago = num_(d.pago);
+  const detalle = String(d.detalle || '').trim();
+  if (yes_(cat.pide_detalle) && !detalle) throw new Error('Especifica la cirugía o el procedimiento.');
+  const tipoTxt = cat.servicio + (detalle ? ' · ' + detalle : '');
+  const precio = num_(d.precio), pago = num_(d.pago);
+  let pres = num_(d.presupuesto);
   if (!(precio > 0)) throw new Error('Ingresa el precio total.');
   if (pres < 0) throw new Error('El presupuesto de gastos no puede ser negativo.');
   if (pago < 0 || pago > precio) throw new Error('El pago no puede ser mayor al precio total.');
   if (pago > 0) forma_(d.forma);
   const fproc = fechaOk_(d.fecha_proc);
+  const gastos = (d.gastos || []).filter(function (g) { return String(g.concepto || '').trim(); }).map(function (g) {
+    const o = { concepto: String(g.concepto).trim(), monto: num_(g.monto), pagado: !!g.pagado };
+    if (o.pagado) {
+      if (!(o.monto > 0)) throw new Error('Escribe el monto de "' + o.concepto + '" para marcarlo como pagado.');
+      o.forma = forma_(g.forma);
+      o.f = fechaPago_(g.fecha || fproc);
+      o.comp = comprobante_(g.comp_tipo, g.comp_num);
+    }
+    return o;
+  });
+  if (gastos.length && !(pres > 0)) pres = suma_(gastos);
   return lock_(function () {
     upsertPac_(pac);
     const id = id_(), now = new Date();
-    add_('Procedimientos', Object.assign({ id: id, fecha: now, tipo: cat.servicio }, pac, {
+    add_('Procedimientos', Object.assign({ id: id, fecha: now, tipo: tipoTxt }, pac, {
       precio_total: precio, presupuesto_gastos: pres,
       forma_cobro: d.forma_cobro === 'adelantos' ? 'Con adelantos' : 'Pago único',
       nota: d.nota || '', usuario: u.nombre, anulado: 'NO', fecha_proc: fproc }));
     if (pago > 0) {
       add_('Movimientos', { id: id_(), fecha: now, mes: mesActual_(), usuario: u.nombre, tipo: 'ingreso',
-        bolsa: 'procedimiento', concepto: cat.servicio + ' – ' + (pago >= precio ? 'pago completo' : 'adelanto'),
+        bolsa: 'procedimiento', concepto: tipoTxt + ' – ' + (pago >= precio ? 'pago completo' : 'adelanto'),
         monto: pago, forma_pago: d.forma, paciente: pac.nombres + ' ' + pac.apellidos, proc_id: id, anulado: 'NO' });
     }
+    const nombre = pac.nombres + ' ' + pac.apellidos;
+    gastos.forEach(function (g) {
+      const pid = id_();
+      add_('Movimientos', { id: pid, fecha: now, mes: mesActual_(), usuario: u.nombre, tipo: 'previsto', bolsa: 'procedimiento',
+        concepto: g.concepto, monto: g.monto, paciente: nombre, proc_id: id, estado: g.pagado ? 'facturado' : 'pendiente', anulado: 'NO' });
+      if (g.pagado) {
+        add_('Movimientos', { id: id_(), fecha: g.f.date, mes: g.f.mes, usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
+          concepto: g.concepto, monto: g.monto, forma_pago: g.forma, paciente: nombre, proc_id: id, origen_id: pid,
+          anulado: 'NO', comprobante: g.comp });
+      }
+    });
     return { ok: true, id: id };
   });
 }
@@ -258,7 +305,7 @@ function anotarPorFacturar(a, procId, concepto, monto) {
   const u = chk_(a);
   concepto = String(concepto || '').trim(); monto = num_(monto);
   if (!concepto) throw new Error('Escribe qué factura falta llegar.');
-  if (!(monto > 0)) throw new Error('Escribe un monto estimado.');
+  if (monto < 0) throw new Error('El monto no puede ser negativo.');
   return lock_(function () {
     const p = procs_().find(function (x) { return x.id === String(procId); });
     if (!p) throw new Error('Procedimiento no encontrado.');
@@ -273,16 +320,56 @@ function registrarFactura(a, prevId, d) {
   if (!(monto > 0)) throw new Error('Ingresa el monto real.');
   forma_(d.forma);
   const comp = comprobante_(d.comp_tipo, d.comp_num);
+  const f = fechaPago_(d.fecha);
   return lock_(function () {
     const pv = rows_('Movimientos').find(function (m) { return String(m.id) === String(prevId) && m.tipo === 'previsto'; });
     if (!pv || yes_(pv.anulado)) throw new Error('Factura por llegar no encontrada.');
     if (pv.estado !== 'pendiente') throw new Error('Esta factura ya fue registrada.');
-    add_('Movimientos', { id: id_(), fecha: new Date(), mes: mesActual_(), usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
+    add_('Movimientos', { id: id_(), fecha: f.date, mes: f.mes, usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
       concepto: pv.concepto, monto: monto, forma_pago: d.forma, paciente: pv.paciente, proc_id: String(pv.proc_id),
       origen_id: String(pv.id), nota: d.nota || '', anulado: 'NO', comprobante: comp });
     set_('Movimientos', pv._row, { estado: 'facturado' });
     return { ok: true };
   });
+}
+function pagarPendientes(a, procId, items) {
+  const u = chk_(a);
+  items = items || [];
+  const prep = items.map(function (it) {
+    const o = { id: String(it.id), monto: num_(it.monto), pagado: !!it.pagado };
+    if (o.monto < 0) throw new Error('Revisa los montos.');
+    if (o.pagado) {
+      if (!(o.monto > 0)) throw new Error('Escribe el monto de cada concepto marcado como pagado.');
+      o.forma = forma_(it.forma); o.f = fechaPago_(it.fecha); o.comp = comprobante_(it.comp_tipo, it.comp_num);
+    }
+    return o;
+  });
+  return lock_(function () {
+    const all = rows_('Movimientos');
+    let n = 0;
+    prep.forEach(function (o) {
+      const pv = all.find(function (m) { return String(m.id) === o.id && m.tipo === 'previsto' && String(m.proc_id) === String(procId); });
+      if (!pv || yes_(pv.anulado) || pv.estado !== 'pendiente') return;
+      if (o.pagado) {
+        add_('Movimientos', { id: id_(), fecha: o.f.date, mes: o.f.mes, usuario: u.nombre, tipo: 'gasto', bolsa: 'procedimiento',
+          concepto: pv.concepto, monto: o.monto, forma_pago: o.forma, paciente: pv.paciente, proc_id: String(pv.proc_id),
+          origen_id: String(pv.id), anulado: 'NO', comprobante: o.comp });
+        set_('Movimientos', pv._row, { estado: 'facturado' });
+        n++;
+      } else if (o.monto !== num_(pv.monto)) {
+        set_('Movimientos', pv._row, { monto: o.monto });
+      }
+    });
+    return { ok: true, pagados: n };
+  });
+}
+function setComprobante(a, movId, tipo, numero) {
+  chk_(a);
+  const comp = comprobante_(tipo, numero);
+  const m = rows_('Movimientos').find(function (x) { return String(x.id) === String(movId); });
+  if (!m || m.tipo !== 'gasto') throw new Error('Gasto no encontrado.');
+  set_('Movimientos', m._row, { comprobante: comp });
+  return { ok: true };
 }
 function porFacturar(a) {
   chk_(a);
@@ -726,8 +813,10 @@ function instalar() {
     C.forEach(function (x, i) {
       add_('Catalogo', { id: 's' + (i + 1), categoria: x[0], servicio: x[1], precio: x[2], tipo: 'servicio', pap: x[3], biopsia_cu: x[4], activo: 'SI' });
     });
-    ['HIFU', 'FRAXX', 'Parto', 'Cesárea', 'Cirugía', 'AMEU', 'Ginecología estética'].forEach(function (x, i) {
-      add_('Catalogo', { id: 'p' + (i + 1), categoria: 'Procedimientos', servicio: x, precio: 0, tipo: 'procedimiento', pap: 0, biopsia_cu: 'NO', activo: 'SI' });
+    [['HIFU', 'NO'], ['FRAXX', 'NO'], ['Parto vaginal', 'NO'], ['Cesárea', 'NO'], ['Cirugía laparoscópica', 'SI'], ['AMEU', 'NO'],
+     ['Ginecología estética', 'SI'], ['Cirugía convencional', 'SI']].forEach(function (x, i) {
+      add_('Catalogo', { id: 'p' + (i + 1), categoria: 'Procedimientos', servicio: x[0], precio: 0, tipo: 'procedimiento', pap: 0,
+        biopsia_cu: 'NO', activo: 'SI', pide_detalle: x[1] });
     });
   }
 
@@ -749,6 +838,40 @@ function instalar() {
     P.forEach(function (x, i) {
       add_('Presupuesto', { id: 'b' + (i + 1), dia: x[0], concepto: x[1], monto: x[2], categoria: x[3],
         desde: x[4] ? '2026-11' : '', hasta: x[4], estimado: x[5], activo: 'SI' });
+    });
+  }
+  // Actualización v4 del catálogo de procedimientos
+  const cat = rows_('Catalogo');
+  cat.forEach(function (c) {
+    if (c.tipo !== 'procedimiento') return;
+    if (c.servicio === 'Parto') set_('Catalogo', c._row, { servicio: 'Parto vaginal', pide_detalle: 'NO' });
+    else if (c.servicio === 'Cirugía') set_('Catalogo', c._row, { servicio: 'Cirugía laparoscópica', pide_detalle: 'SI' });
+    else if (c.servicio === 'Ginecología estética') set_('Catalogo', c._row, { pide_detalle: 'SI' });
+    else if (!c.pide_detalle) set_('Catalogo', c._row, { pide_detalle: 'NO' });
+  });
+  if (!rows_('Catalogo').some(function (c) { return c.servicio === 'Cirugía convencional'; })) {
+    let n = 1;
+    while (cat.some(function (c) { return String(c.id) === 'p' + n; })) n++;
+    add_('Catalogo', { id: 'p' + n, categoria: 'Procedimientos', servicio: 'Cirugía convencional', precio: 0, tipo: 'procedimiento',
+      pap: 0, biopsia_cu: 'NO', activo: 'SI', pide_detalle: 'SI' });
+  }
+  if (rows_('Plantillas').length === 0) {
+    const CL = 'Clínica (sala de operaciones + hospitalización)';
+    const P = {
+      'Cesárea': [CL, 'Anestesiólogo', 'Pediatra', 'Cirujano principal', 'Cirujano ayudante', 'Instrumentista',
+        'Asistente al cirujano principal', 'Técnico de apoyo', 'Alimentación', 'Curación', 'Medicamentos'],
+      'Parto vaginal': [CL, 'Anestesiólogo', 'Pediatra', 'Cirujano principal', 'Obstetra especialista',
+        'Asistente al cirujano principal', 'Técnico de apoyo', 'Alimentación', 'Curación', 'Medicamentos'],
+      'Cirugía laparoscópica': [CL, 'Alquiler de torre de laparoscopia', 'Anestesiólogo', 'Cirujano principal', 'Cirujano ayudante',
+        'Instrumentista', 'Asistente al cirujano principal', 'Técnico de apoyo', 'Alimentación', 'Curación', 'Medicamentos'],
+      'Cirugía convencional': [CL, 'Anestesiólogo', 'Cirujano principal', 'Cirujano ayudante', 'Instrumentista',
+        'Asistente al cirujano principal', 'Técnico de apoyo', 'Alimentación', 'Curación', 'Medicamentos'],
+      'AMEU': ['Anestesiólogo', 'Cirujano principal', 'Asistente al cirujano principal', 'Técnico de sala', 'Clínica', 'Medicamentos'],
+      'FRAXX': ['Cánula', 'Médico tratante', 'Anestesia local'],
+      'HIFU': ['Alquiler de equipo', 'Médico tratante', 'Anestesia local']
+    };
+    Object.keys(P).forEach(function (proc) {
+      P[proc].forEach(function (c, i) { add_('Plantillas', { procedimiento: proc, concepto: c, monto_sugerido: '', orden: i + 1, activo: 'SI' }); });
     });
   }
   if (rows_('Ajustes').length === 0) {
