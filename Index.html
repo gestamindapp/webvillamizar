@@ -219,10 +219,13 @@ VIEWS.inicio = async () => {
     <p class="big">${money(r.total.ingresos)}</p>
     <p class="small muted" style="margin:4px 0 0">Egresos ${money(r.total.egresos)} · Disponible <b class="${r.total.disponible >= 0 ? 'g' : 'r'}">${money(r.total.disponible)}</b></p>
   </div>
-  <div class="grid2" style="margin-bottom:12px">
+  <div class="grid2" style="margin-bottom:8px">
     <button class="btn gr" style="margin:0" onclick="nuevoReg('ingreso')"><i class="ti ti-plus"></i> Ingreso</button>
     <button class="btn rd" style="margin:0" onclick="nuevoReg('gasto')"><i class="ti ti-minus"></i> Gasto</button>
   </div>
+  ${(() => { const u = r.ultImp, ok = u && u.hoy;
+    return `<button class="btn" style="margin:0 0 4px;${ok ? '' : 'background:var(--abg);border-color:#EF9F27;color:var(--a)'}" onclick="go('imp')"><i class="ti ti-file-import" style="${ok ? 'color:var(--g)' : ''}"></i> Importar caja de Medicloud</button>
+    <p class="small center ${ok ? 'muted' : 'a'}" style="margin:0 0 12px">${ok ? '<i class="ti ti-check g"></i> Importado hoy · ' + u.n + (u.n === 1 ? ' cobro' : ' cobros') + ' · último ' + u.hora : (u ? 'Falta importar la caja de hoy · último día importado: ' + u.txt : 'Aún no hay importaciones de Medicloud')}</p>`; })()}
   ${prox.length ? `<div class="card"><p class="mid"><i class="ti ti-bell"></i> Pagos que vencen</p>${prox.map(x => `
     <div class="row tap" onclick="nuevoReg('gasto',{pres:'${x.id}'})"><div class="day">${x.dia}</div><div class="t"><p>${esc(x.concepto)}</p>
     <p class="small ${x.estado === 'vencido' ? 'r' : 'a'}">${x.estado === 'vencido' ? 'Vencido' : 'Vence pronto'}</p></div><b>${money(x.monto)}</b></div>`).join('')}</div>` : ''}

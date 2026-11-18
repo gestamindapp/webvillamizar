@@ -714,6 +714,17 @@ function resumen_(mes) {
   });
   const patPend = suma_(all.filter(function (m) { return m.tipo === 'patologia' && !yes_(m.anulado) && m.estado !== 'pagado'; }));
   const prevPend = all.filter(function (m) { return m.tipo === 'previsto' && !yes_(m.anulado) && m.estado === 'pendiente'; });
+  // Última importación de Medicloud (según la fecha del último cobro importado)
+  let ultImp = null;
+  const imp = all.filter(function (m) { return m.ref && !yes_(m.anulado) && m.tipo === 'ingreso' && m.fecha instanceof Date; });
+  if (imp.length) {
+    const ult = imp.reduce(function (x, m) { return m.fecha > x ? m.fecha : x; }, imp[0].fecha);
+    const dia = Utilities.formatDate(ult, TZ, 'yyyy-MM-dd');
+    const refs = {};
+    imp.forEach(function (m) { if (Utilities.formatDate(m.fecha, TZ, 'yyyy-MM-dd') === dia) refs[String(m.ref)] = true; });
+    ultImp = { dia: dia, txt: Utilities.formatDate(ult, TZ, 'dd/MM'), hora: Utilities.formatDate(ult, TZ, 'HH:mm'),
+      n: Object.keys(refs).length, hoy: dia === hoyIso_() };
+  }
   let dias = 0;
   if (mes === mesActual_()) {
     const y = Number(mes.slice(0, 4)), mo = Number(mes.slice(5, 7));
@@ -726,7 +737,7 @@ function resumen_(mes) {
     procedimientos: { ingresos: pIng, gastos: pGas, patologia: pPat, transferido: tr, ganancia: num_(pIng - pGas - pPat - tr) },
     total: { ingresos: num_(cIng + pIng), egresos: num_(cGas + cPat + pGas + pPat), disponible: num_(cIng + pIng - cGas - cPat - pGas - pPat) },
     pres: pres, porCobrar: porCobrar, totalPorCobrar: num_(porCobrar.reduce(function (s, p) { return s + p.saldo; }, 0)),
-    formas: formas, patPend: patPend, porFacturar: { n: prevPend.length, total: suma_(prevPend) }
+    formas: formas, patPend: patPend, porFacturar: { n: prevPend.length, total: suma_(prevPend) }, ultImp: ultImp
   };
 }
 
