@@ -6,25 +6,27 @@
 
 const TZ = 'America/Lima';
 const BIOPSIA_CU = 80;               // Valor por defecto; el real se edita en la pestaña Ajustes
-const FORMAS = ['Efectivo', 'Transferencia', 'Yape'];
+const FORMAS = ['Efectivo', 'Transferencia', 'Yape', 'Tarjeta', 'Depósito'];
 
 const H = {
   Usuarios:       ['id', 'nombre', 'rol', 'pin', 'activo'],
   Catalogo:       ['id', 'categoria', 'servicio', 'precio', 'tipo', 'pap', 'biopsia_cu', 'activo', 'pide_detalle'],
   Presupuesto:    ['id', 'dia', 'concepto', 'monto', 'categoria', 'desde', 'hasta', 'estimado', 'activo'],
   Movimientos:    ['id', 'fecha', 'mes', 'usuario', 'tipo', 'bolsa', 'concepto', 'monto', 'forma_pago',
-                   'paciente', 'proc_id', 'pres_id', 'origen_id', 'estado', 'nota', 'anulado', 'comprobante'],
+                   'paciente', 'proc_id', 'pres_id', 'origen_id', 'estado', 'nota', 'anulado', 'comprobante', 'ref'],
   Procedimientos: ['id', 'fecha', 'tipo', 'tipo_doc', 'num_doc', 'nombres', 'apellidos', 'celular',
                    'precio_total', 'presupuesto_gastos', 'forma_cobro', 'nota', 'usuario', 'anulado', 'fecha_proc'],
   Pacientes:      ['num_doc', 'tipo_doc', 'nombres', 'apellidos', 'celular', 'actualizado'],
   Correcciones:   ['id', 'fecha', 'usuario', 'mov_id', 'detalle', 'motivo', 'estado'],
   Ajustes:        ['ajuste', 'valor', 'nota'],
-  Plantillas:     ['procedimiento', 'concepto', 'monto_sugerido', 'orden', 'activo']
+  Plantillas:     ['procedimiento', 'concepto', 'monto_sugerido', 'orden', 'activo'],
+  Equivalencias:  ['codigo', 'servicio_id', 'precio_desde', 'descripcion']
 };
 // Columnas que deben guardarse como texto (para no perder ceros ni convertir a fecha)
 const TEXTO = {
   Usuarios: ['id', 'pin'], Catalogo: ['id'], Presupuesto: ['id', 'desde', 'hasta'],
-  Movimientos: ['id', 'mes', 'proc_id', 'pres_id', 'origen_id'],
+  Movimientos: ['id', 'mes', 'proc_id', 'pres_id', 'origen_id', 'ref'],
+  Equivalencias: ['codigo', 'servicio_id'],
   Procedimientos: ['id', 'num_doc', 'celular', 'fecha_proc'], Pacientes: ['num_doc', 'celular'],
   Correcciones: ['id', 'mov_id']
 };
@@ -495,7 +497,9 @@ function anular(a, id) {
     let n = 0;
     const all = rows_('Movimientos');
     all.forEach(function (m) {
-      if (String(m.id) === String(id) || String(m.origen_id) === String(id)) {
+      const tgt = all.find(function (x) { return String(x.id) === String(id); });
+      const mismoRef = tgt && tgt.ref && tgt.tipo === 'ingreso' && m.tipo === 'patologia' && String(m.ref) === String(tgt.ref);
+      if (String(m.id) === String(id) || String(m.origen_id) === String(id) || mismoRef) {
         set_('Movimientos', m._row, { anulado: 'SI' }); n++;
         if (String(m.id) === String(id) && m.tipo === 'gasto' && m.origen_id) {
           const pv = all.find(function (x) { return String(x.id) === String(m.origen_id) && x.tipo === 'previsto'; });
@@ -533,6 +537,136 @@ function resolverCorreccion(a, id, anularMov) {
   if (anularMov) anular(a, c.mov_id);
   set_('Correcciones', c._row, { estado: 'resuelta' });
   return { ok: true };
+}
+
+// ================= Importar caja de Medicloud =================
+const MC_FORMAS = { 'Efectivo': 'Efectivo', 'Transferencia': 'Transferencia', 'Tarjeta': 'Tarjeta', 'Depósito': 'Depósito',
+  'Cheque': 'Depósito', 'Seguro/Med': 'Transferencia' };
+function equivalencias_() {
+  const out = {};
+  try {
+    rows_('Equivalencias').forEach(function (e) {
+      const k = String(e.codigo).trim().toUpperCase();
+      (out[k] = out[k] || []).push({ id: String(e.servicio_id).trim(), desde: num_(e.precio_desde) });
+    });
+  } catch (err) {}
+  Object.keys(out).forEach(function (k) { out[k].sort(function (a, b) { return b.desde - a.desde; }); });
+  return out;
+}
+function equiv_(eq, codigo, valor) {
+  const l = eq[String(codigo || '').trim().toUpperCase()];
+  if (!l) return '';
+  const e = l.find(function (x) { return valor >= x.desde; }) || l[l.length - 1];
+  return e.id;
+}
+function mcFecha_(f) {
+  const m = String(f || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return null;
+  return { date: new Date(m[1] + 'T' + m[2] + ':' + m[3] + ':00-05:00'), mes: m[1].slice(0, 7), txt: m[1].slice(8, 10) + '/' + m[1].slice(5, 7) + ' ' + m[2] + ':' + m[3] };
+}
+// tx: [{id, fecha, paciente, estado, forma, total, pagos:{Efectivo:..}, lineas:[{codigo, servicio, valor}]}]
+function analizar_(tx) {
+  const movs = rows_('Movimientos');
+  const ya = {};
+  movs.forEach(function (m) { if (m.ref && !yes_(m.anulado)) ya[String(m.ref)] = true; });
+  const eq = equivalencias_();
+  const cat = rows_('Catalogo');
+  const catById = {};
+  cat.forEach(function (c) { catById[String(c.id)] = c; });
+  return (tx || []).map(function (t) {
+    const o = { id: String(t.id), paciente: String(t.paciente || '').trim(), total: num_(t.total) };
+    const f = mcFecha_(t.fecha);
+    o.fechaTxt = f ? f.txt : '';
+    const pagos = [];
+    Object.keys(t.pagos || {}).forEach(function (k) {
+      const v = num_(t.pagos[k]);
+      if (v > 0) pagos.push({ forma: MC_FORMAS[k] || 'Transferencia', monto: v });
+    });
+    o.pagos = pagos;
+    o.lineas = (t.lineas || []).map(function (l) {
+      const v = num_(l.valor);
+      const sid = equiv_(eq, l.codigo, v);
+      const c = sid ? catById[sid] : null;
+      return { codigo: String(l.codigo || '').trim().toUpperCase(), servicio: String(l.servicio || '').trim(), valor: v,
+        cat_id: c ? String(c.id) : '', cat_nombre: c ? c.servicio : '', proc: c ? c.tipo === 'procedimiento' : false };
+    });
+    if (ya[o.id]) o.estado = 'duplicado';
+    else if (!f) o.estado = 'omitir';
+    else if (String(t.estado || '').trim().toUpperCase() !== 'OK' || /pendiente/i.test(String(t.forma || '')) || !pagos.length) o.estado = 'omitir';
+    else if (o.lineas.some(function (l) { return l.proc; })) o.estado = 'procedimiento';
+    else if (!o.lineas.length || o.lineas.some(function (l) { return !l.cat_id; })) o.estado = 'emparejar';
+    else o.estado = 'listo';
+    return o;
+  });
+}
+function previaImport(a, tx) {
+  chk_(a);
+  if (!tx || !tx.length) throw new Error('El archivo no tiene cobros.');
+  return analizar_(tx);
+}
+// decisiones: { equiv: {CODIGO: cat_id|'omitir'}, procs: {txId: proc_id|'omitir'} }
+function importarCaja(a, tx, decisiones) {
+  const u = chk_(a);
+  decisiones = decisiones || {};
+  const nuevas = decisiones.equiv || {}, procsDec = decisiones.procs || {};
+  return lock_(function () {
+    // guardar equivalencias nuevas
+    const eqActual = equivalencias_();
+    Object.keys(nuevas).forEach(function (k) {
+      const v = String(nuevas[k] || '');
+      if (v && v !== 'omitir' && !eqActual[k.toUpperCase()]) add_('Equivalencias', { codigo: k.toUpperCase(), servicio_id: v, precio_desde: 0, descripcion: 'Agregado al importar' });
+    });
+    const an = analizar_(tx);
+    const cat = rows_('Catalogo');
+    const catById = {};
+    cat.forEach(function (c) { catById[String(c.id)] = c; });
+    const procs = procs_();
+    const txById = {};
+    (tx || []).forEach(function (t) { txById[String(t.id)] = t; });
+    let n = 0, total = 0, omit = 0, dup = 0;
+    an.forEach(function (o) {
+      if (o.estado === 'duplicado') { dup++; return; }
+      if (o.estado === 'omitir') { omit++; return; }
+      const f = mcFecha_(txById[o.id].fecha);
+      const formaPrincipal = o.pagos.slice().sort(function (x, y) { return y.monto - x.monto; })[0].forma;
+      const base = { fecha: f.date, mes: f.mes, usuario: u.nombre + ' (Medicloud)', anulado: 'NO', ref: o.id };
+      if (o.estado === 'procedimiento') {
+        const pid = procsDec[o.id];
+        const p = pid && pid !== 'omitir' ? procs.find(function (x) { return x.id === String(pid); }) : null;
+        if (!p) { omit++; return; }
+        o.pagos.forEach(function (pg) {
+          add_('Movimientos', Object.assign({}, base, { id: id_(), tipo: 'ingreso', bolsa: 'procedimiento', concepto: p.tipo + ' – abono',
+            monto: pg.monto, forma_pago: pg.forma, paciente: p.nombre, proc_id: p.id, nota: 'Medicloud #' + o.id }));
+          total += pg.monto;
+        });
+        n++;
+        return;
+      }
+      // servicios del consultorio
+      const lineas = o.lineas.map(function (l) {
+        const cid = l.cat_id || (nuevas[l.codigo] && nuevas[l.codigo] !== 'omitir' ? nuevas[l.codigo] : '');
+        return Object.assign({}, l, { cat_id: cid });
+      }).filter(function (l) { return l.cat_id; });
+      if (!lineas.length) { omit++; return; }
+      const partes = lineas.length === 1 ? o.pagos.map(function (pg) { return { l: lineas[0], monto: pg.monto, forma: pg.forma }; })
+        : lineas.map(function (l) { return { l: l, monto: l.valor, forma: formaPrincipal }; });
+      lineas.forEach(function (l) {
+        const c = catById[l.cat_id];
+        if (c && num_(c.pap) > 0) {
+          add_('Movimientos', Object.assign({}, base, { id: id_(), tipo: 'patologia', bolsa: 'consultorio', concepto: 'PAP – ' + c.servicio,
+            monto: num_(c.pap), paciente: o.paciente, estado: 'pendiente', nota: 'Medicloud #' + o.id }));
+        }
+      });
+      partes.forEach(function (pt) {
+        const c = catById[pt.l.cat_id];
+        add_('Movimientos', Object.assign({}, base, { id: id_(), tipo: 'ingreso', bolsa: 'consultorio', concepto: c ? c.servicio : pt.l.servicio,
+          monto: pt.monto, forma_pago: pt.forma, paciente: o.paciente, nota: 'Medicloud #' + o.id }));
+        total += pt.monto;
+      });
+      n++;
+    });
+    return { ok: true, importados: n, total: num_(total), omitidos: omit, duplicados: dup };
+  });
 }
 
 // ================= Presupuesto y resumen =================
@@ -743,6 +877,17 @@ function informeExcel(a, mes) {
     mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 }
 
+// ================= Reiniciar datos (ejecutar desde el editor, solo una vez) =================
+function reiniciarDatosDePrueba() {
+  const ss = ss_();
+  const copia = DriveApp.getFileById(ss.getId()).makeCopy(ss.getName() + ' – respaldo pruebas ' + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm'));
+  ['Movimientos', 'Procedimientos', 'Pacientes', 'Correcciones'].forEach(function (n) {
+    const s = sh_(n);
+    if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, Math.max(1, s.getLastColumn())).clearContent();
+  });
+  Logger.log('Datos de prueba borrados. Respaldo: ' + copia.getName());
+}
+
 // ================= Instalación (ejecutar una sola vez) =================
 function instalar() {
   const ss = ss_();
@@ -854,6 +999,20 @@ function instalar() {
     while (cat.some(function (c) { return String(c.id) === 'p' + n; })) n++;
     add_('Catalogo', { id: 'p' + n, categoria: 'Procedimientos', servicio: 'Cirugía convencional', precio: 0, tipo: 'procedimiento',
       pap: 0, biopsia_cu: 'NO', activo: 'SI', pide_detalle: 'SI' });
+  }
+  [['s29', 'Gestantes', 'Control prenatal semanal', 100], ['s30', 'Ginecología', 'Control ginecológico', 50]].forEach(function (x) {
+    if (!rows_('Catalogo').some(function (c) { return String(c.id) === x[0] || c.servicio === x[2]; })) {
+      add_('Catalogo', { id: x[0], categoria: x[1], servicio: x[2], precio: x[3], tipo: 'servicio', pap: 0, biopsia_cu: 'NO', activo: 'SI', pide_detalle: 'NO' });
+    }
+  });
+  if (rows_('Equivalencias').length === 0) {
+    const fx = rows_('Catalogo').find(function (c) { return c.servicio === 'FRAXX'; });
+    [['CONS', 's13'], ['CTV', 's14'], ['CPNN', 's8'], ['ECOTV', 's22'], ['EOBS', 's10'], ['ETVOBST', 's9'], ['CPS', 's29'], ['CG', 's30'],
+     ['SF', 's5'], ['PG', 's16'], ['PGEM', 's15'], ['CPI', 's18'], ['CEE', 's19'], ['EM', 's23'], ['CF', 's3'], ['CEO', 's6'],
+     ['ED', 's1'], ['EG', 's25', 0], ['EG', 's24', 400], ['MORFO', 's27', 0], ['MORFO', 's26', 400]].forEach(function (x) {
+      add_('Equivalencias', { codigo: x[0], servicio_id: x[1], precio_desde: x[2] || 0, descripcion: 'Inicial' });
+    });
+    if (fx) add_('Equivalencias', { codigo: 'FRAX', servicio_id: String(fx.id), precio_desde: 0, descripcion: 'Procedimiento' });
   }
   if (rows_('Plantillas').length === 0) {
     const CL = 'Clínica (sala de operaciones + hospitalización)';

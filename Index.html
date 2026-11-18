@@ -748,6 +748,7 @@ VIEWS.mas = async () => {
   ${item('ti-calendar-dollar', 'Presupuesto general', "go('pres')")}
   ${item('ti-microscope', 'Patología', "go('pat')")}
   ${item('ti-file-text', 'Informe PDF y Excel', "go('inf')")}
+  ${item('ti-file-import', 'Importar caja de Medicloud', "go('imp')")}
   ${isAdmin() ? item('ti-message-exclamation', 'Correcciones pedidas', "go('corr')", nc ? `<span class="badge bd-r">${nc}</span>` : '') : ''}
   ${isAdmin() ? item('ti-arrows-exchange', 'Pasar dinero de procedimientos al consultorio', 'transfer()') : ''}
   ${item('ti-key', 'Cambiar mi PIN', 'cambiarPin()')}
@@ -787,6 +788,96 @@ async function doCambiarPin() {
     if (S.recordar !== false) store.set(S.u);
     closeModal(); toast('PIN cambiado');
   } catch (e) { $('#perr').textContent = msg(e); }
+}
+
+// ============ IMPORTAR MEDICLOUD ============
+let IM = null;
+function cargarXLSX() {
+  return new Promise((res, rej) => {
+    if (window.XLSX) return res();
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => res(); s.onerror = () => rej(new Error('No se pudo cargar el lector de Excel. Revisa tu conexión.'));
+    document.head.appendChild(s);
+  });
+}
+VIEWS.imp = () => {
+  IM = null;
+  $('#app').innerHTML = `<p class="small tap b" onclick="go('mas')"><i class="ti ti-arrow-left"></i> Más</p><h1>Importar caja de Medicloud</h1>
+  <div class="card"><p class="small muted" style="margin-top:0">1. En Medicloud: Administración › Caja &amp; Ingresos › elige las fechas › menú ⋯ › <b>Exportar datos a Excel</b>.<br>2. Elige aquí el archivo descargado.</p>
+  <input type="file" id="fx" accept=".xlsx,.xls" onchange="leerMC(this.files[0])">
+  <p class="err" id="ierr"></p></div><div id="iprev"></div>`;
+};
+function serialAFecha(v) {
+  if (typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 86400000)); const p = n => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':00'; }
+  return String(v || '');
+}
+async function leerMC(file) {
+  if (!file) return;
+  $('#ierr').textContent = ''; $('#iprev').innerHTML = '<div class="loading">Leyendo el archivo…</div>';
+  try {
+    await cargarXLSX();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const R = wb.Sheets['Resumen de caja'], D = wb.Sheets['Detalle de servicios'];
+    if (!R || !D) throw new Error('Este archivo no parece una exportación de caja de Medicloud. Debe tener las hojas "Resumen de caja" y "Detalle de servicios".');
+    const res = XLSX.utils.sheet_to_json(R, { defval: '', raw: true }), det = XLSX.utils.sheet_to_json(D, { defval: '', raw: true });
+    const lin = {};
+    det.forEach(d => { const k = String(d['ID transacción']); (lin[k] = lin[k] || []).push({ codigo: d['Código'], servicio: d['Servicio / Producto'], valor: d['Valor'] }); });
+    const tx = res.filter(r => String(r['ID transacción']).trim()).map(r => ({ id: String(r['ID transacción']).trim(), fecha: serialAFecha(r['Fecha']),
+      paciente: r['Paciente / Cliente'], estado: r['Estado'], forma: r['Forma de pago'], total: r['Total pagado'],
+      pagos: { 'Efectivo': r['Efectivo'], 'Cheque': r['Cheque'], 'Tarjeta': r['Tarjeta'], 'Depósito': r['Depósito'], 'Transferencia': r['Transferencia'], 'Seguro/Med': r['Seguro/Med'] },
+      lineas: lin[String(r['ID transacción']).trim()] || [] }));
+    if (!tx.length) throw new Error('El archivo no tiene cobros.');
+    const an = await api('previaImport', auth(), tx);
+    IM = { tx, an, equiv: {}, procs: {}, nombre: file.name };
+    vIM();
+  } catch (e) { $('#iprev').innerHTML = ''; $('#ierr').textContent = msg(e); }
+}
+function imCalc() {
+  let n = 0, t = 0;
+  IM.an.forEach(o => {
+    let ok = false;
+    if (o.estado === 'listo') ok = true;
+    else if (o.estado === 'emparejar') ok = o.lineas.every(l => l.cat_id || (IM.equiv[l.codigo] && IM.equiv[l.codigo] !== 'omitir')) && o.lineas.length > 0;
+    else if (o.estado === 'procedimiento') ok = IM.procs[o.id] && IM.procs[o.id] !== 'omitir';
+    o._ok = ok; if (ok) { n++; t += o.pagos.reduce((s, p) => s + p.monto, 0); }
+  });
+  return { n, t };
+}
+function vIM() {
+  const cnt = k => IM.an.filter(o => o.estado === k).length;
+  const cods = {};
+  IM.an.filter(o => o.estado === 'emparejar').forEach(o => o.lineas.forEach(l => { if (!l.cat_id) cods[l.codigo] = cods[l.codigo] || { servicio: l.servicio, n: 0 }; if (!l.cat_id) cods[l.codigo].n++; }));
+  const serv = S.init.cat.filter(c => c.tipo === 'servicio');
+  const procsSel = S.init.procs.filter(p => p.saldo > 0 || p.mesCreado >= mover(S.init.mes, -2));
+  const c = imCalc();
+  const badge = { listo: ['Listo', 'bd-g'], emparejar: ['Por emparejar', 'bd-a'], procedimiento: ['Procedimiento', 'bd-p'], omitir: ['Se omite', 'bd-n'], duplicado: ['Ya importado', 'bd-n'] };
+  $('#iprev').innerHTML = `<div class="card"><p class="small muted" style="margin:0 0 8px">${esc(IM.nombre)} · ${IM.an.length} cobros</p>
+  <div class="grid2"><div class="tile g"><p class="lb">Listos</p><b class="g">${cnt('listo')}</b></div><div class="tile"><p class="lb">Por emparejar</p><b class="a">${cnt('emparejar')}</b></div>
+  <div class="tile"><p class="lb">Procedimientos</p><b>${cnt('procedimiento')}</b></div><div class="tile"><p class="lb">Ya importados / se omiten</p><b class="muted">${cnt('duplicado')} / ${cnt('omitir')}</b></div></div></div>
+  ${Object.keys(cods).length ? `<h2>Emparejar códigos (una sola vez)</h2><div class="card">${Object.keys(cods).map(k => `<p style="margin:0 0 4px"><b>${esc(k)}</b> · ${esc(cods[k].servicio)} <span class="muted small">(${cods[k].n})</span></p>
+    <select onchange="IM.equiv['${esc(k)}']=this.value;vIM()"><option value="">Elegir servicio…</option><option value="omitir" ${IM.equiv[k] === 'omitir' ? 'selected' : ''}>No importar</option>
+    ${serv.map(s => `<option value="${s.id}" ${IM.equiv[k] === s.id ? 'selected' : ''}>${esc(s.servicio)}</option>`).join('')}</select>`).join('')}
+    <p class="small muted" style="margin:0">La app recordará estos emparejamientos para las próximas importaciones.</p></div>` : ''}
+  ${cnt('procedimiento') ? `<h2>Cobros de procedimientos</h2><div class="card">${IM.an.filter(o => o.estado === 'procedimiento').map(o => `<p style="margin:0 0 4px">${esc(o.fechaTxt)} · ${esc(o.lineas.map(l => l.servicio).join(', '))} · <b>${money(o.total)}</b><br><span class="small muted">${esc(o.paciente)}</span></p>
+    <select onchange="IM.procs['${o.id}']=this.value;vIM()"><option value="omitir">No importar (ya está en la app)</option>
+    ${procsSel.map(p => `<option value="${p.id}" ${IM.procs[o.id] === p.id ? 'selected' : ''}>Abono a: ${esc(p.tipo)} · ${esc(p.nombre)}${p.saldo ? ' (saldo ' + money(p.saldo) + ')' : ''}</option>`).join('')}</select>`).join('')}</div>` : ''}
+  <h2>Vista previa</h2><div class="card" style="padding:4px 14px">${IM.an.map(o => `<div class="row"><div class="t"><p>${esc(o.lineas.map(l => l.cat_nombre || IM.equiv[l.codigo] && (serv.find(s => s.id === IM.equiv[l.codigo]) || {}).servicio || l.servicio).join(', ') || '—')}</p>
+    <p class="small muted">${esc(o.fechaTxt)} · ${esc(o.pagos.map(p => p.forma).join(' + ') || '—')} · #${esc(o.id)}</p></div>
+    <div style="text-align:right"><b class="${o._ok ? '' : 'muted'}">${money(o.total)}</b><br><span class="badge ${badge[o.estado][1]}">${badge[o.estado][0]}</span></div></div>`).join('')}</div>
+  <p class="err" id="ierr2"></p>
+  <button class="btn pri" ${busy || !c.n ? 'disabled' : ''} onclick="doImport()">Importar ${c.n} cobros · ${money(c.t)}</button>`;
+}
+async function doImport() {
+  if (busy) return;
+  busy = true; vIM();
+  try {
+    const r = await api('importarCaja', auth(), IM.tx, { equiv: IM.equiv, procs: IM.procs });
+    busy = false;
+    toast(r.importados + ' cobros importados · ' + money(r.total));
+    await refreshInit(); go('inicio');
+  } catch (e) { busy = false; vIM(); $('#ierr2').textContent = msg(e); }
 }
 
 // ============ CORRECCIONES ============
