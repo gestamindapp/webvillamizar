@@ -47,8 +47,36 @@ function sh_(n) {
   if (!s) throw new Error('Falta la hoja "' + n + '". Ejecuta instalar() en el editor.');
   return s;
 }
+// Memoria por ejecución (cada pestaña se lee una sola vez por acción) y caché de configuración (5 min)
+const MEM_ = {};
+const CONF_ = ['Usuarios', 'Catalogo', 'Presupuesto', 'Plantillas', 'Ajustes', 'Equivalencias'];
+function valores_(n) {
+  if (MEM_[n]) return MEM_[n];
+  let v = null;
+  const cache = CacheService.getScriptCache();
+  if (CONF_.indexOf(n) >= 0) {
+    const c = cache.get('hoja_' + n);
+    if (c) { try { v = JSON.parse(c); } catch (e) { v = null; } }
+  }
+  if (!v) {
+    v = sh_(n).getDataRange().getValues();
+    if (CONF_.indexOf(n) >= 0) {
+      v = v.map(function (r) { return r.map(function (x) { return x instanceof Date ? Utilities.formatDate(x, TZ, n === 'Presupuesto' ? 'yyyy-MM' : 'yyyy-MM-dd') : x; }); });
+      try { cache.put('hoja_' + n, JSON.stringify(v), 300); } catch (e) {}
+    }
+  }
+  MEM_[n] = v;
+  return v;
+}
+function olvidar_(n) {
+  delete MEM_[n];
+  if (CONF_.indexOf(n) >= 0) CacheService.getScriptCache().remove('hoja_' + n);
+}
+function limpiarCache() { CONF_.forEach(function (n) { olvidar_(n); }); }
+// Al editar la hoja a mano, la app toma los cambios de inmediato
+function onEdit(e) { try { const n = e.range.getSheet().getName(); if (CONF_.indexOf(n) >= 0) olvidar_(n); } catch (err) {} }
 function rows_(n) {
-  const v = sh_(n).getDataRange().getValues();
+  const v = valores_(n).slice();
   const h = v.shift() || [];
   const out = [];
   v.forEach(function (r, i) {
@@ -60,9 +88,11 @@ function rows_(n) {
   return out;
 }
 function add_(n, o) {
+  olvidar_(n);
   sh_(n).appendRow(H[n].map(function (k) { return (o[k] === undefined || o[k] === null) ? '' : o[k]; }));
 }
 function set_(n, row, changes) {
+  olvidar_(n);
   const s = sh_(n);
   Object.keys(changes).forEach(function (k) {
     const c = H[n].indexOf(k);
@@ -181,6 +211,13 @@ function init(a) {
   const top = Object.keys(cnt).sort(function (x, y) { return cnt[y] - cnt[x]; }).slice(0, 4);
   return { user: { id: String(u.id), nombre: u.nombre, rol: String(u.rol).toLowerCase() },
     cat: cat, pres: pres, top: top, procs: procs_(movs), formas: FORMAS, comps: COMP, biopsiaCU: biopsiaCU_(), mes: mes, plantillas: plantillas_(), hoy: hoyIso_() };
+}
+
+function arranque(a, mes) {
+  const ini = init(a);
+  const r = resumen_(mes || ini.mes);
+  delete r.all; delete r.mv; delete r.procs;
+  return { init: ini, resumen: r };
 }
 
 // ================= Procedimientos =================
@@ -901,6 +938,7 @@ function reiniciarDatosDePrueba() {
 
 // ================= Instalación (ejecutar una sola vez) =================
 function instalar() {
+  limpiarCache();
   const ss = ss_();
   Object.keys(H).forEach(function (n) {
     let s = ss.getSheetByName(n);
@@ -1047,5 +1085,6 @@ function instalar() {
   if (rows_('Ajustes').length === 0) {
     add_('Ajustes', { ajuste: 'biopsia_cuello_uterino', valor: BIOPSIA_CU, nota: 'Descuento de Patología por biopsia de cuello uterino (S/)' });
   }
+  limpiarCache();
   Logger.log('Listo. Revisa la hoja "Usuarios" para ver los PIN de cada persona.');
 }

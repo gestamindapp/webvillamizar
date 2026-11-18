@@ -98,6 +98,10 @@ const store = {
   set(v) { try { localStorage.setItem('consultorio_u', JSON.stringify(v)); } catch (e) {} },
   clear() { try { localStorage.removeItem('consultorio_u'); } catch (e) {} }
 };
+const lc = {
+  get(k) { try { return JSON.parse(localStorage.getItem('consultorio_' + k) || 'null'); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('consultorio_' + k, JSON.stringify(v)); } catch (e) {} }
+};
 function toast(t, err) {
   const el = $('#toast'); el.textContent = t; el.className = err ? 'e' : ''; el.style.display = 'block';
   clearTimeout(el._t); el._t = setTimeout(() => el.style.display = 'none', 3000);
@@ -128,13 +132,15 @@ function chip(txt, on, fn) { return `<span class="chip ${on ? 'on' : ''}" onclic
 function seg(opts, cls) {
   return `<div class="seg ${opts.length === 3 ? 'three' : 'two'}">` + opts.map(o => `<div class="${o.on ? 'on ' + (o.c || '') : ''}" onclick="${o.fn}">${esc(o.t)}</div>`).join('') + '</div>';
 }
-async function refreshInit() { S.init = await api('init', auth()); }
+async function refreshInit() { S.init = await api('init', auth()); lc.set('init_' + S.u.id, S.init); }
 
 // ============ Inicio de sesión ============
 async function start() {
   const saved = store.get();
   if (saved) {
     S.u = saved;
+    const ci = lc.get('init_' + saved.id);
+    if (ci) { S.init = ci; S.mes = ci.mes; showNav(); go('inicio'); return; }
     try { await refreshInit(); S.u.rol = S.init.user.rol; S.mes = S.init.mes; showNav(); go('inicio'); return; }
     catch (e) { store.clear(); }
   }
@@ -186,12 +192,19 @@ function go(v, p) {
 
 // ============ INICIO ============
 VIEWS.inicio = async () => {
-  loading();
-  let r;
-  try { r = await api('resumen', auth(), S.mes); } catch (e) { return fail(e); }
+  const key = 'res_' + S.u.id + '_' + S.mes;
+  const cached = lc.get(key);
+  if (cached) pintarInicio(cached, true); else loading();
+  let d;
+  try { d = await api('arranque', auth(), S.mes); }
+  catch (e) { if (cached) { const b = $('#upd'); if (b) b.outerHTML = '<span class="badge bd-r">Sin conexión</span>'; return; } return fail(e); }
+  S.init = d.init; S.u.rol = d.init.user.rol; lc.set('init_' + S.u.id, d.init); lc.set(key, d.resumen);
+  if (S.view === 'inicio') pintarInicio(d.resumen, false);
+};
+function pintarInicio(r, actualizando) {
   const c = r.consultorio, p = r.procedimientos, pc = pct(c.neto, c.meta);
   const prox = r.pres.filter(x => x.estado === 'proximo' || x.estado === 'vencido');
-  $('#app').innerHTML = mnav() + `
+  $('#app').innerHTML = mnav().replace('</b>', '</b>' + (actualizando ? ' <span class="badge bd-b" id="upd"><i class="ti ti-refresh"></i> Actualizando…</span>' : '')) + `
   <div class="card tap" onclick="go('pres')">
     <p class="mid"><i class="ti ti-stethoscope"></i> Consultorio</p>
     <p class="lb">Debe cubrir el presupuesto general</p>
@@ -234,7 +247,7 @@ VIEWS.inicio = async () => {
     <a href="${wa(x.celular, 'Hola ' + x.nombre.split(' ')[0] + ', le saludamos del consultorio del Dr. Villamizar. Le recordamos su saldo pendiente de ' + money(x.saldo) + ' por ' + x.tipo + '.')}" target="_blank" style="color:#25D366;font-size:24px"><i class="ti ti-brand-whatsapp"></i></a></div>`).join('')}</div>` : ''}
   ${r.porFacturar && r.porFacturar.n ? `<div class="card tap" onclick="go('porfac')"><div class="row"><span><i class="ti ti-file-invoice"></i> Pagos pendientes de procedimientos (${r.porFacturar.n})</span><b class="a">~${money(r.porFacturar.total)}</b></div></div>` : ''}
   ${r.patPend ? `<div class="card tap" onclick="go('pat')"><div class="row"><span><i class="ti ti-microscope"></i> Por pagar a Patología</span><b class="a">${money(r.patPend)}</b></div></div>` : ''}`;
-};
+}
 function fail(e) { $('#app').innerHTML = `<p class="err">${esc(msg(e))}</p><button class="btn" onclick="go(S.view,S.param)">Reintentar</button>`; if (/PIN|ingresar/i.test(msg(e))) salir(); }
 
 // ============ REGISTRAR ============
@@ -336,7 +349,7 @@ async function guardarIngreso() {
   try {
     const r = await api('registrarIngreso', auth(), { cat_id: F.item ? F.item.id : '', proc_id: F.proc, monto: m, forma: F.forma, paciente: F.paciente, biopsia: F.biopsia, nota: F.nota });
     busy = false; toast('Guardado · neto ' + money(r.neto));
-    await refreshInit(); go('inicio');
+    go('inicio');
   } catch (e) { busy = false; F.err = msg(e); vReg(); }
 }
 
@@ -879,7 +892,7 @@ async function doImport() {
     const r = await api('importarCaja', auth(), IM.tx, { equiv: IM.equiv, procs: IM.procs });
     busy = false;
     toast(r.importados + ' cobros importados · ' + money(r.total));
-    await refreshInit(); go('inicio');
+    go('inicio');
   } catch (e) { busy = false; vIM(); $('#ierr2').textContent = msg(e); }
 }
 
