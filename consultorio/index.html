@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consultorio</title>
+<meta name="apple-mobile-web-app-title" content="Consultorio">
+<meta name="application-name" content="Consultorio">
+<meta name="theme-color" content="#0F6E56">
+<meta name="robots" content="noindex, nofollow">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="manifest" href="manifest.json">
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#F4F3EE;color:#1f1e1b;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}
+.box{max-width:360px;padding:24px}
+img{width:96px;height:96px;border-radius:22px}
+a.btn{display:block;margin:20px 0 12px;padding:14px;border-radius:12px;background:#0F6E56;color:#fff;text-decoration:none;font-weight:600;font-size:17px}
+p{color:#6b6a64;font-size:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="box">
+  <img src="icon-192.png" alt="">
+  <h1 style="font-size:20px;margin:14px 0 4px">Finanzas del consultorio</h1>
+  <p id="estado">Abriendo la app…</p>
+  <a class="btn" id="abrir" href="#">Abrir la app</a>
+  <p id="ayuda"></p>
+</div>
+<script>
+var APP = 'https://script.google.com/macros/s/AKfycbwN8xkuvtgeftxkdjV3V78FYUqZKilAviwMkjSHyQgYDva8emNMsb3sQyaxwoNHjnVQWw/exec';
+document.getElementById('abrir').href = APP;
+if (location.search.indexOf('instalar') < 0) {
+  location.replace(APP);
+} else {
+  // Mostrar instrucciones y dejar la dirección limpia para que el ícono guardado abra la app directo
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  document.getElementById('estado').textContent = 'Agrega este ícono a tu pantalla de inicio para entrar con un toque.';
+  document.getElementById('ayuda').innerHTML = ios
+    ? 'En iPhone: toca el botón <b>Compartir</b> de Safari y luego <b>Agregar a inicio</b>.'
+    : 'En Android: toca el menú <b>⋮</b> de Chrome y luego <b>Agregar a la pantalla principal</b>.';
+}
+</script>
+</body>
+</html>
